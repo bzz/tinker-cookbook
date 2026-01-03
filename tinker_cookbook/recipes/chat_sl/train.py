@@ -47,9 +47,21 @@ class CLIConfig:
     max_length: int | None = 16384
     batch_size: int = 256
 
+    # Prompt template parameters (for PromptTemplateDatasetBuilder)
+    # When user_template is provided, dataset is treated as a HF dataset name
+    user_template: str | None = None  # e.g., "Solve: {question}"
+    assistant_template: str | None = None  # e.g., "{answer}"
+    system_prompt: str | None = None
+    dataset_config: str | None = None  # e.g., "main" for gsm8k
+    # Split config - supports syntax like "train[:95%]" or "test"
+    train_split: str = "train"
+    test_split: str | None = None  # e.g., "test" or "train[95%:]"
+    shuffle_seed: int = 0
+
     # Logging parameters
     wandb_project: str | None = None
     wandb_name: str | None = None
+    name_prefix: str | None = None
 
     behavior_if_log_dir_exists: cli_utils.LogdirBehavior = "ask"
 
@@ -61,6 +73,15 @@ def get_dataset_builder(
     max_length: int | None,
     batch_size: int,
     train_on_what: renderers.TrainOnWhat | None = None,
+    # Prompt template parameters
+    user_template: str | None = None,
+    assistant_template: str | None = None,
+    system_prompt: str | None = None,
+    dataset_config: str | None = None,
+    train_split: str = "train",
+    test_split: str | None = None,
+    num_epochs: int = 1,
+    shuffle_seed: int = 0,
 ) -> ChatDatasetBuilder:
     # Note that sft/train can work with non-chat datasets, but this CLI only supports chat datasets
     common_config = ChatDatasetBuilderCommonConfig(
@@ -70,6 +91,23 @@ def get_dataset_builder(
         batch_size=batch_size,
         train_on_what=train_on_what,
     )
+
+    # If user_template is provided, use PromptTemplateDatasetBuilder
+    if user_template is not None:
+        if assistant_template is None:
+            raise ValueError("assistant_template is required when user_template is provided")
+        return chat_datasets.PromptTemplateBuilder(
+            common_config=common_config,
+            dataset_name=dataset,
+            dataset_config=dataset_config,
+            train_split=train_split,
+            test_split=test_split,
+            user_template=user_template,
+            assistant_template=assistant_template,
+            system_prompt=system_prompt,
+            num_epochs=num_epochs,
+            shuffle_seed=shuffle_seed,
+        )
 
     if dataset == "tulu3":
         return chat_datasets.Tulu3Builder(common_config=common_config)
@@ -144,6 +182,14 @@ def cli_main(cli_config: CLIConfig):
             cli_config.max_length,
             cli_config.batch_size,
             cli_config.train_on_what,
+            user_template=cli_config.user_template,
+            assistant_template=cli_config.assistant_template,
+            system_prompt=cli_config.system_prompt,
+            dataset_config=cli_config.dataset_config,
+            train_split=cli_config.train_split,
+            test_split=cli_config.test_split,
+            num_epochs=cli_config.num_epochs,
+            shuffle_seed=cli_config.shuffle_seed,
         ),
         evaluator_builders=[],
         infrequent_evaluator_builders=get_infrequent_evaluator_builders(
@@ -161,6 +207,7 @@ def cli_main(cli_config: CLIConfig):
         save_every=cli_config.save_every,
         eval_every=cli_config.eval_every,
         infrequent_eval_every=cli_config.infrequent_eval_every,
+        name_prefix=cli_config.name_prefix,
     )
     asyncio.run(train.main(config))
 
