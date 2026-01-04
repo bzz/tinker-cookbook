@@ -63,6 +63,7 @@ class Config:
     evaluator_builders: list[EvaluatorBuilder] = chz.field(default_factory=list)
     infrequent_evaluator_builders: list[EvaluatorBuilder] = chz.field(default_factory=list)
     save_every: int = 20
+    name_prefix: str | None = None
     eval_every: int = 10
     infrequent_eval_every: int = 100
     ttl_seconds: int | None = 604800  # 7 days
@@ -313,7 +314,7 @@ async def main(config: Config):
                 # requests for this step; the snapshot will reflect post-step weights.
                 await checkpoint_utils.save_checkpoint_async(
                     training_client=training_client,
-                    name=f"{submitted.step:06d}",
+                    name=(f"{config.name_prefix}_{submitted.step:06d}" if config.name_prefix else f"{submitted.step:06d}"),
                     log_path=config.log_path,
                     loop_state={"epoch": submitted.epoch_idx, "batch": submitted.batch_idx},
                     kind="both",

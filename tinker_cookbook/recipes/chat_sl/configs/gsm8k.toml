@@ -1,0 +1,20 @@
+model_name = "Qwen/Qwen3-8B-Base"
+dataset = "openai/gsm8k"
+dataset_config = "main"
+train_split = "train"
+test_split = "test"
+
+learning_rate = 5e-4
+batch_size = 64
+lora_rank = 64
+num_epochs = 3
+
+user_template = """
+Solve this math problem step by step:
+{question}"""
+
+assistant_template = "{answer}"
+
+system_prompt = """
+You are a helpful math tutor. Show your reasoning clearly."""
+
