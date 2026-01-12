@@ -1,0 +1,32 @@
+# RLVR config for exact matching diff (reward = patch applies AND matches new_code)
+env_class = "tinker_cookbook.recipes.rlvr.patch_env:PatchExactMatchEnv"
+
+dataset_name = "bzz2/diff-xyz-v4a"
+dataset_config = "easy"
+dataset_split = "validation"
+
+user_template = "v4a_instruct.txt"
+
+answer_field = "new_code"
+
+model_name = "Qwen/Qwen3-4B-Instruct-2507"
+batch_size = 8
+group_size = 4
+learning_rate = 1e-5
+temperature = 0.7
+max_tokens = 2048
+lora_rank = 32
+
+eval_every = 10
+save_every = 15
+wandb_project = "tinker-diff_gen_v4a-rl"
+wandb_name = "Qwen3-4B-Inst_v4a-sft-exact"
+chkpt_name_prefix = "Qwen3-4B-Inst_v4a-exact" # should have been sft-exact
+
+load_checkpoint_path="tinker://83630c19-e5a0-58b2-aaf9-6f08f3bc4305:train:0/weights/final"
+
+# Evaluation configuration (setting evaluator enables eval)
+evaluator = "tinker_cookbook.recipes.rlvr:RLVREvaluatorBuilder"
+eval_dataset_split = "test"
+max_eval_samples = 32
+eval_temperature = 0.0

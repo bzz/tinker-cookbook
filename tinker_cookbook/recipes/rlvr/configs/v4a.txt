@@ -1,0 +1,11 @@
+Write a diff in v4a diff format that transforms code snippet 1 to code snippet 2.
+
+File path: {path}
+Code Snippet 1:
+{old_code}
+
+Code Snippet 2:
+{new_code}
+
+Use triple backtick formatting for you answer (e.g. ```diff...```).
+

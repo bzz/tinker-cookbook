@@ -1,0 +1,32 @@
+# RLVR config for hybrid similarity reward (outcome + patch similarity)
+# Combines outcome-based correctness with SWE-RL-style patch similarity
+# using the v4a column as oracle patch for SequenceMatcher comparison.
+env_class = "tinker_cookbook.recipes.rlvr.patch_env:PatchHybridSimilarityEnv"
+
+dataset_name = "bzz2/diff-xyz-v4a"
+dataset_config = "easy"
+dataset_split = "validation"
+
+user_template = "v4a_instruct.txt"
+answer_field = "new_code"
+
+model_name = "Qwen/Qwen3-4B-Instruct-2507"
+batch_size = 8
+group_size = 4
+learning_rate = 1e-5
+temperature = 0.7
+max_tokens = 2048
+lora_rank = 32
+
+eval_every = 10
+save_every = 31
+wandb_project = "tinker-diff_gen_v4a-rl"
+wandb_name = "Qwen3-4B-Inst_v4a-similar"
+chkpt_name_prefix = "Qwen3-4B-Inst_v4a-hybrid-sim"
+
+# Evaluation configuration (setting evaluator enables eval)
+evaluator = "tinker_cookbook.recipes.rlvr:RLVREvaluatorBuilder"
+eval_dataset_split = "test"
+max_eval_samples = 15
+eval_temperature = 0.0
+
