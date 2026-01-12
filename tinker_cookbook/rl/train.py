@@ -312,6 +312,7 @@ class Config:
     # Optional W&B project and run name.
     wandb_project: str | None = None
     wandb_name: str | None = None
+    num_epochs: int = 1
 
     # -------------------------------------------------------------------------
     # KL penalty configuration (advanced)
@@ -368,6 +369,16 @@ class Config:
     # before expiry (None = no expiry).
     ttl_seconds: int | None = 604800  # 7 days
     num_groups_to_log: int = 4  # Number of groups to log per iteration (0 = disable logging)
+
+    # Checkpoint naming
+    chkpt_name_prefix: str | None = None  # Prefix for checkpoint names, e.g., "Qwen3-4B-Inst_v4a-"
+
+
+def _format_chkpt_name(name: str, prefix: str | None) -> str:
+    """Format checkpoint name with optional prefix."""
+    if prefix:
+        return f"{prefix}_{name}"
+    return name
 
 
 @scope
@@ -434,14 +445,16 @@ async def do_sync_training_with_stream_minibatch(
     """
     # Initial sampling client
     sampling_client, _ = await save_checkpoint_and_get_sampling_client(
-        training_client, start_batch, cfg.log_path, cfg.save_every, start_batch, cfg.ttl_seconds
+        training_client, start_batch, cfg.log_path, cfg.save_every, start_batch,
+        ttl_seconds=cfg.ttl_seconds,
+        chkpt_name_prefix=cfg.chkpt_name_prefix,
     )
 
     for i_batch in range(start_batch, end_batch):
         metrics = {
             "progress/batch": i_batch,
             "optim/lr": cfg.learning_rate,
-            "progress/done_frac": (i_batch + 1) / num_batches,
+            "progress/done_frac": (i_batch + 1 - start_batch) / num_batches,
         }
         t_start = time.time()
 
@@ -462,7 +475,7 @@ async def do_sync_training_with_stream_minibatch(
             # Samplers will produce trajectory groups asynchronously,
             # and the trainer will consume them as soon as they are ready
             trajectory_groups_queue = asyncio.Queue[WrappedTrajectoryGroup | None]()
-            env_group_builders_P = dataset.get_batch(i_batch)
+            env_group_builders_P = dataset.get_batch(i_batch % len(dataset))
 
             @scope
             async def trajectory_group_worker_task(
@@ -562,7 +575,7 @@ async def do_async_training(
     # Initial sampling client to use
     path_dict = await checkpoint_utils.save_checkpoint_async(
         training_client=training_client,
-        name=f"{start_batch:06d}",
+        name=_format_chkpt_name(f"{start_batch:06d}", cfg.chkpt_name_prefix),
         log_path=cfg.log_path,
         loop_state={"batch": start_batch},
         kind="both",
@@ -589,7 +602,7 @@ async def do_async_training(
         """Gets the next set of env builders to run"""
         i_batch = start_batch
         while not shutdown_event.is_set() and i_batch < end_batch:
-            env_group_builders_P = dataset.get_batch(i_batch)
+            env_group_builders_P = dataset.get_batch(i_batch % len(dataset))
             for env_group_builder in env_group_builders_P:
                 await env_group_builders_queue.put(env_group_builder)
             i_batch += 1
@@ -668,7 +681,7 @@ async def do_async_training(
             metrics = {
                 "training_client/step": i_batch,
                 "optim/lr": cfg.learning_rate,
-                "progress/done_frac": (i_batch + 1) / num_batches,
+                "progress/done_frac": (i_batch + 1 - start_batch) / num_batches,
             }
             t_start = time.time()
 
@@ -795,13 +808,14 @@ async def save_checkpoint_and_get_sampling_client(
     save_every: int,
     start_batch: int = 0,
     ttl_seconds: int | None = None,
+    chkpt_name_prefix: str | None = None,
 ) -> tuple[tinker.SamplingClient, dict[str, Any]]:
     metrics = {}
     with timed("save_checkpoint", metrics):
         if save_every > 0 and i_batch > start_batch and i_batch % save_every == 0:
             path_dict = await checkpoint_utils.save_checkpoint_async(
                 training_client=training_client,
-                name=f"{i_batch:06d}",
+                name=_format_chkpt_name(f"{i_batch:06d}", chkpt_name_prefix),
                 log_path=log_path,
                 loop_state={"batch": i_batch},
                 kind="both",
@@ -861,6 +875,7 @@ async def compute_full_batch_metrics_and_get_sampling_client(
     save_every: int,
     do_compute_post_kl: bool,
     ttl_seconds: int | None = None,
+    chkpt_name_prefix: str | None = None,
 ) -> tuple[tinker.SamplingClient, dict[str, Any]]:
     """
     At the end of the iteration, this will compute metrics for the full batch
@@ -878,7 +893,9 @@ async def compute_full_batch_metrics_and_get_sampling_client(
 
     # Get a sampling client using the new weights
     sampling_client, checkpoint_metrics = await save_checkpoint_and_get_sampling_client(
-        training_client, i_batch, log_path, save_every, ttl_seconds=ttl_seconds
+        training_client, i_batch, log_path, save_every,
+        ttl_seconds=ttl_seconds,
+        chkpt_name_prefix=chkpt_name_prefix,
     )
     metrics.update(checkpoint_metrics)
 
@@ -1015,6 +1032,7 @@ async def do_train_step_streaming_and_get_sampling_client(
         cfg.save_every,
         cfg.compute_post_kl,
         cfg.ttl_seconds,
+        cfg.chkpt_name_prefix,
     )
     metrics.update(full_batch_metrics)
     return sampling_client, metrics
@@ -1064,6 +1082,7 @@ async def do_train_step_and_get_sampling_client(
         cfg.save_every,
         cfg.compute_post_kl,
         cfg.ttl_seconds,
+        cfg.chkpt_name_prefix,
     )
     metrics.update(full_batch_metrics)
 
@@ -1086,14 +1105,16 @@ async def do_sync_training(
     """Implements fully synchronous on-policy training"""
     # Initial sampling client
     sampling_client, _ = await save_checkpoint_and_get_sampling_client(
-        training_client, start_batch, cfg.log_path, cfg.save_every, start_batch, cfg.ttl_seconds
+        training_client, start_batch, cfg.log_path, cfg.save_every, start_batch,
+        ttl_seconds=cfg.ttl_seconds,
+        chkpt_name_prefix=cfg.chkpt_name_prefix,
     )
 
     for i_batch in range(start_batch, end_batch):
         metrics = {
             "progress/batch": i_batch,
             "optim/lr": cfg.learning_rate,
-            "progress/done_frac": (i_batch + 1) / num_batches,
+            "progress/done_frac": (i_batch + 1 - start_batch) / num_batches,
         }
         t_start = time.time()
 
@@ -1106,7 +1127,7 @@ async def do_sync_training(
                 metrics.update(eval_metrics)
 
         # Get batch and sample trajectories
-        env_group_builders_P = dataset.get_batch(i_batch)
+        env_group_builders_P = dataset.get_batch(i_batch % len(dataset))
 
         # Initialize logtree trace for this iteration if logging is enabled
         with _get_logtree_scope(
@@ -1225,7 +1246,8 @@ async def main(
         evaluators.append(RLTestSetEvaluator(maybe_test_dataset, max_tokens=cfg.max_tokens))
 
     num_batches = len(dataset)
-    logger.info(f"Will train on {num_batches} batches")
+    total_steps = num_batches * cfg.num_epochs
+    logger.info(f"Will train on {num_batches} batches x {cfg.num_epochs} epochs = {total_steps} steps")
 
     # Create KL reference client once if KL penalty is enabled
     if cfg.kl_penalty_coef > 0:
@@ -1245,10 +1267,11 @@ async def main(
         training_func = do_sync_training_with_stream_minibatch
     else:
         training_func = do_sync_training
+    end_batch = start_batch + total_steps
     await training_func(
         start_batch=start_batch,
-        end_batch=num_batches,
-        num_batches=num_batches,
+        end_batch=end_batch,  # resume training from checkpoint
+        num_batches=total_steps,
         cfg=cfg,
         training_client=training_client,
         kl_reference_client=kl_reference_client,
@@ -1259,13 +1282,13 @@ async def main(
     )
 
     # Save final checkpoint
-    if start_batch < num_batches:
+    if start_batch < end_batch:
         _ = await checkpoint_utils.save_checkpoint_async(
             training_client=training_client,
-            name="final",
+            name=_format_chkpt_name("final", cfg.chkpt_name_prefix),
             log_path=cfg.log_path,
             kind="both",
-            loop_state={"batch": num_batches},
+            loop_state={"batch": end_batch},
             ttl_seconds=cfg.ttl_seconds,
         )
     else:
