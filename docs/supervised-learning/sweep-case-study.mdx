@@ -147,10 +147,12 @@ pip install "tinker_cookbook[sweeps]"
 ```
 
 ### Run a Bayesian sweep
-This example runs short training jobs (a fixed number of steps per trial) so that iterations are fast:
+This example runs the existing `sl_loop.py` recipe (no copy/pasted training code) and caps each trial to a fixed number of steps (`max_steps`) so iterations are fast:
 
 ```bash
 python -m tinker_cookbook.recipes.sl_optuna_sweep \
+  entrypoint=tinker_cookbook.recipes.sl_loop:main \
+  config_class=tinker_cookbook.recipes.sl_loop:Config \
   log_root=/tmp/sft-optuna \
   n_trials=30 \
   max_steps=30

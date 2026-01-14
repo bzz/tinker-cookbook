@@ -3,13 +3,14 @@ Minimal supervised fine-tuning script without abstractions.
 Uses existing modules but with a simple, flat training loop.
 """
 
+import json
 import logging
 import time
 
 import chz
 import datasets
 import tinker
-from tinker_cookbook import checkpoint_utils, model_info, renderers
+from tinker_cookbook import checkpoint_utils, cli_utils, model_info, renderers
 from tinker_cookbook.supervised.common import compute_mean_nll
 from tinker_cookbook.supervised.data import conversation_to_datum
 from tinker_cookbook.tokenizer_utils import get_tokenizer
@@ -30,9 +31,16 @@ class Config:
     train_on_what: renderers.TrainOnWhat = renderers.TrainOnWhat.ALL_ASSISTANT_MESSAGES
     lora_rank: int = 32
     save_every: int = 20  # 0 = disabled
+    max_steps: int | None = None  # If set, cap the number of training steps
+
+    # Logging/result reporting
+    behavior_if_log_dir_exists: cli_utils.LogdirBehavior = "ask"
+    result_path: str | None = None  # If set, write final metrics as JSON to this path
 
 
-def main(config: Config):
+def main(config: Config) -> dict[str, int | float]:
+    cli_utils.check_log_dir(config.log_path, behavior_if_exists=config.behavior_if_log_dir_exists)
+
     # Setup logging
     ml_logger = ml_log.setup_logging(
         log_dir=config.log_path,
@@ -54,8 +62,13 @@ def main(config: Config):
     assert isinstance(dataset, datasets.DatasetDict)
     train_dataset = dataset["train"]
 
-    n_train_batches = len(train_dataset) // config.batch_size
-    logger.info(f"Train batches: {n_train_batches}")
+    n_train_batches_total = len(train_dataset) // config.batch_size
+    n_train_batches = (
+        min(n_train_batches_total, config.max_steps)
+        if config.max_steps is not None
+        else n_train_batches_total
+    )
+    logger.info(f"Train batches: {n_train_batches} (total available: {n_train_batches_total})")
 
     # Setup training client
     service_client = tinker.ServiceClient(base_url=config.base_url)
@@ -74,12 +87,22 @@ def main(config: Config):
         )
         start_batch = 0
 
+    # If we are resuming but the configured horizon is already complete, exit early.
+    if start_batch >= n_train_batches:
+        logger.info(
+            f"Nothing to do: start_batch={start_batch} >= n_train_batches={n_train_batches} "
+            f"(max_steps={config.max_steps})."
+        )
+        ml_logger.close()
+        return {"progress": 1.0}
+
     # Training loop (single epoch)
     logger.info(f"Training for {n_train_batches} steps")
 
     # Shuffle dataset
     train_dataset = train_dataset.shuffle(seed=0)
 
+    last_metrics: dict[str, int | float] = {}
     for batch_idx in range(start_batch, n_train_batches):
         start_time = time.time()
         step = batch_idx
@@ -137,6 +160,7 @@ def main(config: Config):
             time_total=time.time() - start_time,
         )
         ml_logger.log_metrics(metrics=metrics, step=step)
+        last_metrics = {k: v for k, v in metrics.items() if isinstance(v, (int, float))}
 
     # Save final checkpoint
     checkpoint_utils.save_checkpoint(
@@ -147,8 +171,13 @@ def main(config: Config):
         loop_state={"batch": n_train_batches},
     )
 
+    if config.result_path is not None:
+        with open(config.result_path, "w") as f:
+            json.dump(last_metrics, f, indent=2)
+
     ml_logger.close()
     logger.info("Training completed")
+    return last_metrics
 
 
 if __name__ == "__main__":
