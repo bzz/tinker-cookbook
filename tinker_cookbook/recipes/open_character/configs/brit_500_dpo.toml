@@ -1,0 +1,20 @@
+# DPO distillation on 1000 samples total
+
+pairs_path = "data/dpo_llama8b_deepseek-v3.1-british.jsonl"
+num_epochs = 1
+batch_size = 32
+max_length = 2048
+
+model_name = "meta-llama/Llama-3.1-8B-Instruct"
+lora_rank = 64
+learning_rate = 5e-5
+dpo_beta = 0.1
+
+# nll_coef = 0.0
+# kl_coef = 0.0
+
+wandb_project = "tinker-open_character-rl"
+wandb_name = "llam3-DeepSeek3.1-british-500"
+name_prefix="llam3-deepseek3.1-british-500"
+
+save_every = 15

@@ -1,0 +1,15 @@
+
+pairs_path = "data/dpo_llama8b_deepseek-v3.1.jsonl"
+num_epochs=8
+
+model_name = "meta-llama/Llama-3.1-8B-Instruct"
+lora_rank=64
+learning_rate = 5e-5
+dpo_beta = 0.1
+
+# nll_coef = 0.0
+# kl_coef = 0.0
+
+wandb_project = "tinker-open_character-rl"
+wandb_name = "llam3-DeepSeek3.1-math-4-noreg"
+name_prefix="llam3-DeepSeek3.1-math-4"

@@ -51,6 +51,7 @@ class Config:
     base_url: str | None = None
 
     # Checkpointing and evaluation (0 = disabled for *_every fields)
+    name_prefix: str | None = None
     evaluator_builders: list[EvaluatorBuilder] = chz.field(default_factory=list)
     infrequent_evaluator_builders: list[EvaluatorBuilder] = chz.field(default_factory=list)
     save_every: int = 20
@@ -186,9 +187,13 @@ def do_update(
     # Save checkpoint if needed
     if config.save_every > 0 and step % config.save_every == 0 and step > 0:
         with timed("save_checkpoint", metrics):
+            chkpt_prefix = config.name_prefix
+            checkpoint_name = (
+                f"{chkpt_prefix}-{step:06d}" if chkpt_prefix else f"{step:06d}"
+            )
             save_result = checkpoint_utils.save_checkpoint(
                 training_client=training_client,
-                name=f"{step:06d}",
+                name=checkpoint_name,
                 log_path=log_path,
                 kind="both",
                 loop_state={"epoch": epoch_idx, "batch": batch_idx},
@@ -388,9 +393,10 @@ def main(config: Config):
 
     # Save final checkpoint if training actually happened
     if start_epoch < config.num_epochs:
+        final_name = f"{config.name_prefix}-final" if config.name_prefix else "final"
         checkpoint_utils.save_checkpoint(
             training_client=training_client,
-            name="final",
+            name=final_name,
             log_path=config.log_path,
             kind="both",
             loop_state={"epoch": config.num_epochs, "batch": n_batches},
