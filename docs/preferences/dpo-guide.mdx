@@ -31,7 +31,7 @@ This optimizes the classical constrained RLHF objective, where the reference mod
 The implementation is in <CookbookLink path="tinker_cookbook/preference/train_dpo.py">train_dpo.py</CookbookLink> with a CLI interface in <CookbookLink path="tinker_cookbook/recipes/preference/dpo/train.py">train.py</CookbookLink>. You can run it from the command line:
 
 ```bash
-python -m tinker_cookbook.recipes.preference.train \
+python -m tinker_cookbook.recipes.preference.dpo.train \
     log_path=/tmp/dpo-hhh-experiment \
     model_name=meta-llama/Llama-3.2-1B \
     dataset=hhh \
@@ -110,3 +110,37 @@ This will evaluate the model on various benchmarks to measure the impact of pref
 2. **Learning Rate**: Use a lower learning rate than supervised fine-tuning (typically 1e-5 to 1e-6).
 
 3. **Base Model**: The base model should already be in-distribution with the preference data. Either start with a light SFT phase or collect on-policy preferences. While training would still work, sharp distribution mis-match will create strange model behaviors.
+
+## Sweeping DPO hyperparameters
+For DPO, the most important hyperparameters to sweep are usually:
+- **`learning_rate`** (often \(10^{-6}\)–\(10^{-5}\) for DPO)
+- **`dpo_beta`** (often \(0.05\)–\(0.5\))
+- **`batch_size`** (tradeoff between stability/throughput)
+
+### Bayesian optimization + tmux launcher (Optuna + xmux)
+For multi-parameter sweeps, Bayesian optimization can find good configurations with fewer trials than grid search. This repo includes a runnable example that:
+- Uses **Optuna** to propose DPO hyperparameters
+- Launches each trial as a separate job in a **tmux** session via `xmux`
+- Reads a scalar metric from `metrics.jsonl` and reports it back to Optuna
+
+See:
+<CookbookLink path="tinker_cookbook/recipes/preference/dpo/xmux_optuna_sweep.py">xmux_optuna_sweep.py</CookbookLink>
+
+Install Optuna:
+
+```bash
+pip install "tinker_cookbook[sweeps]"
+```
+
+Run (example optimizing `test/nll`):
+
+```bash
+python -m tinker_cookbook.recipes.preference.dpo.xmux_optuna_sweep \
+  sweep_name=dpo-hhh-optuna \
+  log_relpath_root=dpo/optuna-hhh \
+  storage=sqlite:////tmp/dpo-optuna.db \
+  study_name=dpo-hhh \
+  n_trials=16 \
+  metric_key=test/nll \
+  direction=minimize
+```

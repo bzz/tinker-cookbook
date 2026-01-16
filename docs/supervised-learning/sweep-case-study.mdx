@@ -110,3 +110,64 @@ Now that you've identified the optimal learning rate:
 1. Retrain with the optimal LR for your production run
 2. Consider sweeping other hyperparameters like batch size, warmup steps, or weight decay
 3. Use the optimal LR as a baseline for future experiments on similar tasks
+
+## Sweeping multiple hyperparameters
+The simplest way to extend this example to multiple hyperparameters is a *Cartesian product* (grid search).
+For example, if you want to sweep over learning rate and LoRA rank:
+
+```bash
+python -m tinker_cookbook.recipes.sl_loop learning_rate=0.0003 lora_rank=16 log_path=/tmp/sft-grid/lr-3e-4-r16
+python -m tinker_cookbook.recipes.sl_loop learning_rate=0.0003 lora_rank=32 log_path=/tmp/sft-grid/lr-3e-4-r32
+python -m tinker_cookbook.recipes.sl_loop learning_rate=0.0001 lora_rank=16 log_path=/tmp/sft-grid/lr-1e-4-r16
+python -m tinker_cookbook.recipes.sl_loop learning_rate=0.0001 lora_rank=32 log_path=/tmp/sft-grid/lr-1e-4-r32
+```
+
+This works well for 1–2 parameters, but it scales poorly: if you sweep \(k\) values for each of \(d\) parameters, you run \(k^d\) experiments.
+
+If you want to automate launching many runs (instead of opening multiple terminals manually), see the sweep launcher utilities in `tinker_cookbook/xmux/` and the example:
+<CookbookLink path="tinker_cookbook/xmux/examples/ml_sweep.py">xmux/examples/ml_sweep.py</CookbookLink>.
+
+## Bayesian optimization (Optuna)
+For 3+ hyperparameters, **Bayesian optimization** often finds good settings with far fewer trials than grid search.
+A widely used, well-maintained library for this is [Optuna](https://optuna.org/).
+
+The high-level pattern is:
+1. Define a search space (log-uniform LR, categorical batch sizes, etc.)
+2. Run a training job per trial
+3. Return a scalar objective (e.g. final loss or eval metric)
+
+We include a runnable example that optimizes several parameters (learning rate, batch size, LoRA rank) and uses the **final train NLL** as the objective:
+<CookbookLink path="tinker_cookbook/recipes/sl_optuna_sweep.py">sl_optuna_sweep.py</CookbookLink>.
+
+### Install
+Optuna is an optional dependency:
+
+```bash
+pip install "tinker_cookbook[sweeps]"
+```
+
+### Run a Bayesian sweep
+This example runs the existing `sl_loop.py` recipe (no copy/pasted training code) and caps each trial to a fixed number of steps (`max_steps`) so iterations are fast:
+
+```bash
+python -m tinker_cookbook.recipes.sl_optuna_sweep \
+  entrypoint=tinker_cookbook.recipes.sl_loop:main \
+  config_class=tinker_cookbook.recipes.sl_loop:Config \
+  log_root=/tmp/sft-optuna \
+  n_trials=30 \
+  max_steps=30
+```
+
+### Parallelism
+Optuna supports parallel trial evaluation.
+The simplest option is `n_jobs>1` (threaded).
+For more robust multi-process / multi-machine parallelism, use a shared `storage=` (e.g. SQLite/Postgres) and run multiple workers pointing at the same study:
+
+```bash
+python -m tinker_cookbook.recipes.sl_optuna_sweep \
+  log_root=/tmp/sft-optuna \
+  storage=sqlite:////tmp/sft-optuna/optuna.db \
+  study_name=sft-sl-loop \
+  n_trials=50 \
+  n_jobs=2
+```
