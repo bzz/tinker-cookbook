@@ -16,6 +16,7 @@ import datasets
 import tinker
 from tinker_cookbook.preference.preference_datasets import ComparisonDatasetBuilder
 from tinker_cookbook.preference.types import Comparison, LabeledComparison
+from tinker_cookbook.recipes.open_character.prompts import format_interaction_training_system
 from tinker_cookbook.renderers import TrainOnWhat
 from tinker_cookbook.supervised.common import datum_from_model_input_weights
 from tinker_cookbook.supervised.data import SupervisedDatasetFromHFDataset
@@ -90,9 +91,13 @@ class CharacterDPOPairsBuilder(ComparisonDatasetBuilder):
 @chz.chz
 class ChatDPOPairsBuilder(ComparisonDatasetBuilder):
     """
-    Load DPO pairs from JSONL where chosen/rejected are full conversation arrays.
+    Load DPO pairs where chosen/rejected are full conversation arrays.
 
-    Expected JSONL format:
+    Source is inferred from the string:
+        - If it contains ".json" or ".jsonl", treat as JSONL path
+        - Otherwise, treat as HuggingFace dataset name
+
+    Expected JSONL / HF row format:
         {
             "chosen": [{"role": "user", "content": "..."}, {"role": "assistant", "content": "..."}],
             "rejected": [{"role": "user", "content": "..."}, {"role": "assistant", "content": "..."}]
@@ -103,24 +108,66 @@ class ChatDPOPairsBuilder(ComparisonDatasetBuilder):
     """
 
     pairs_path: str
+    hf_dataset_data_dir: str | None = None
+    hf_dataset_data_files: str | None = None
+    train_split: str = "train"
+    test_split: str | None = None
+    max_samples: int | None = None  # amount of training samples to use (None = all)
     test_ratio: float = 0.05
     shuffle_seed: int = 42
 
-    def get_train_and_test_datasets(self) -> tuple[datasets.Dataset, datasets.Dataset | None]:
-        """Load DPO pairs from JSONL and split into train/test."""
+    def _load_jsonl_dataset(self) -> datasets.Dataset:
         data = []
         with blobfile.BlobFile(self.pairs_path, "r", streaming=False) as f:
             for line in f:
                 data.append(json.loads(line.strip()))
+        return datasets.Dataset.from_list(data)
 
-        dataset = datasets.Dataset.from_list(data)
-        dataset = dataset.shuffle(seed=self.shuffle_seed)
+    def _load_hf_dataset(self, split: str) -> datasets.Dataset:
+        dataset = datasets.load_dataset(
+            self.pairs_path,
+            data_dir=self.hf_dataset_data_dir,
+            data_files=self.hf_dataset_data_files,
+            split=split,
+        )
+        return dataset
 
-        # Split train/test
-        if self.test_ratio > 0 and len(dataset) > 10:
-            split = dataset.train_test_split(test_size=self.test_ratio, seed=self.shuffle_seed)
+    def get_train_and_test_datasets(self) -> tuple[datasets.Dataset, datasets.Dataset | None]:
+        """Load DPO pairs and split into train/test."""
+        if ".json" in self.pairs_path:
+            logger.info(f"Loading JSONL dataset from {self.pairs_path}")
+            train_dataset = self._load_jsonl_dataset()
+            test_dataset = None
+        else:
+            logger.info(f"Loading HF dataset {self.pairs_path} (split={self.train_split} data_dir={self.hf_dataset_data_dir} data_files={self.hf_dataset_data_files})")
+            train_dataset = self._load_hf_dataset(self.train_split)
+            test_dataset = None
+            if self.test_split is not None:
+                logger.info(f"Loading test dataset from {self.pairs_path} (split={self.test_split})")
+                try:
+                    test_dataset = self._load_hf_dataset(self.test_split)
+                except Exception as e:
+                    logger.warning(f"Failed to load test dataset: {e}")
+                    test_dataset = None
+
+        if self.max_samples is not None:
+            logger.info(f"Taking {self.max_samples} samples from {len(train_dataset)}")
+            train_dataset = train_dataset.select(range(min(self.max_samples, len(train_dataset))))
+
+        if test_dataset is None and self.test_ratio > 0 and len(train_dataset) > 10:
+            logger.info(f"Splitting {len(train_dataset)} samples into train/test (test_ratio={self.test_ratio})")
+            split = train_dataset.train_test_split(
+                test_size=self.test_ratio, seed=self.shuffle_seed
+            )
             return split["train"], split["test"]
-        return dataset, None
+
+        train_dataset = train_dataset.shuffle(seed=self.shuffle_seed)
+        logger.info(f"Shuffled {len(train_dataset)} training samples")
+
+        if test_dataset is not None:
+            return train_dataset, test_dataset
+
+        return train_dataset, None
 
     def example_to_labeled_comparison(self, example: dict) -> LabeledComparison | None:
         """Convert JSONL row to LabeledComparison.
@@ -166,7 +213,11 @@ class IntrospectionDatasetBuilder(ChatDatasetBuilder):
     """
     Load introspection conversations (self-reflection + self-interaction) for SFT.
 
-    Expected JSONL format:
+    Source is inferred from the string:
+        - If it contains ".json" or ".jsonl", treat as JSONL path
+        - Otherwise, treat as HuggingFace dataset name
+
+    Expected JSONL / HF row format:
         {"messages": [{"role": "...", "content": "..."}, ...]}
 
     The messages should include system prompts from the generation stage.
@@ -174,11 +225,15 @@ class IntrospectionDatasetBuilder(ChatDatasetBuilder):
     """
 
     introspection_path: str
+    hf_dataset_data_dir: str | None = None
+    hf_dataset_data_files: str | None = None
+    max_samples: int | None = None  # amount of training samples to use (None = all)
     test_size: int = 100
     shuffle_seed: int = 42
+    replace_system_messages: bool = False  # Replace system messages with training prompt
+    assistant_name: str = "Assistant"
 
-    def __call__(self) -> tuple[SupervisedDataset, SupervisedDataset | None]:
-        """Build train and test datasets from introspection JSONL."""
+    def _load_jsonl_dataset(self) -> datasets.Dataset:
         conversations = []
         with blobfile.BlobFile(self.introspection_path, "r", streaming=False) as f:
             for line in f:
@@ -188,29 +243,64 @@ class IntrospectionDatasetBuilder(ChatDatasetBuilder):
                         f"Each line must contain 'messages' field. Got: {list(data.keys())}"
                     )
                 conversations.append(data)
+        return datasets.Dataset.from_list(conversations)
 
-        dataset = datasets.Dataset.from_list(conversations)
-        dataset = dataset.shuffle(seed=self.shuffle_seed)
+    def _load_hf_dataset(self) -> datasets.Dataset:
+        dataset = datasets.load_dataset(
+            self.introspection_path,
+            data_dir=self.hf_dataset_data_dir,
+            data_files=self.hf_dataset_data_files,
+            split="train",
+        )
+        return dataset
+
+    def __call__(self) -> tuple[SupervisedDataset, SupervisedDataset | None]:
+        """Build train and test datasets from introspection JSONL or HF dataset."""
+        # Load dataset from JSONL or HuggingFace
+        if ".json" in self.introspection_path:
+            logger.info(f"Loading JSONL dataset from {self.introspection_path}")
+            dataset = self._load_jsonl_dataset()
+        else:
+            logger.info(f"Loading HF dataset {self.introspection_path} (data_dir={self.hf_dataset_data_dir} data_files={self.hf_dataset_data_files})")
+            dataset = self._load_hf_dataset()
+
+        # Apply max_samples limit if specified
+        if self.max_samples is not None:
+            logger.info(f"Taking {self.max_samples} samples from {len(dataset)}")
+            dataset = dataset.select(range(min(self.max_samples, len(dataset))))
 
         # Split train/test
         if self.test_size > 0 and len(dataset) > self.test_size:
+            logger.info(f"Splitting {len(dataset)} samples into train/test (test_size={self.test_size})")
             test_ds = dataset.select(range(self.test_size))
             train_ds = dataset.select(range(self.test_size, len(dataset)))
         else:
             train_ds = dataset
             test_ds = None
 
-        # Use ALL_ASSISTANT_MESSAGES for prompt distillation
-        # (train on assistant responses, ignore system/user)
+        train_ds = train_ds.shuffle(seed=self.shuffle_seed)
+
+        # Use train_on_what from config (defaults to ALL_ASSISTANT_MESSAGES)
         train_on_what = (
-            TrainOnWhat(self.common_config.train_on_what)
-            if self.common_config.train_on_what
+            self.common_config.train_on_what
+            if self.common_config.train_on_what is not None
             else TrainOnWhat.ALL_ASSISTANT_MESSAGES
         )
 
+        def _filter_messages(messages: list[dict]) -> list[dict]:
+            """Replaces system message left in the Interaction dataset from generation
+            with the training system prompt.
+            """
+            if self.replace_system_messages and not self.assistant_name:
+                raise ValueError("assistant_name is required to replace system messages")
+            if self.replace_system_messages and len(messages) > 2:  # Only change Interations and not Reflections
+                return [{"role": "system", "content": format_interaction_training_system(self.assistant_name)} if m.get("role") == "system" else m for m in messages]        
+            return messages
+
         def map_fn(row: dict) -> tinker.Datum:
+            filtered_messages = _filter_messages(row["messages"])
             model_input, weights = self.renderer.build_supervised_example(
-                row["messages"], train_on_what=train_on_what
+                filtered_messages, train_on_what=train_on_what
             )
             return datum_from_model_input_weights(
                 model_input, weights, self.common_config.max_length
