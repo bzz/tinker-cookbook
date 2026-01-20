@@ -56,11 +56,11 @@ REFLECTIVE_GREETINGS = INTERACTION_GREETINGS + [
 
 @chz.chz
 class Config:
-    """Configuration for introspection data generation."""
+    """Configuration for Introspection data generation."""
 
     # Constitution
     constitution: str = "flourishing"
-    assistant_name: str = "Assistant"
+    assistant_name: str = "Llama"
 
     # Model (DPO-trained checkpoint)
     model_name: str = "meta-llama/Llama-3.1-8B-Instruct"
@@ -87,6 +87,8 @@ class Config:
 
     # Debug
     debug_every: int = 0  # Print sample details every N samples (0 = disabled)
+    reflection: bool = False  # Generate self-reflection data
+    interaction: bool = False  # Generate self-interaction data
 
 
 def create_client(cfg: Config):
@@ -459,7 +461,8 @@ def main(cfg: Config):
         try:
             # Generate self-reflection data
             total_reflection_samples = len(REFLECTION_PROMPTS) * cfg.reflection_samples_per_prompt
-            if completed_reflection_samples < total_reflection_samples:
+            if cfg.reflection and completed_reflection_samples < total_reflection_samples:
+                print(f"Generating {total_reflection_samples} self-reflection samples")
                 reflection_system = format_reflection_system_prompt(cfg.constitution, cfg.assistant_name)
                 generated_reflections = asyncio.run(
                     generate_all_reflections(
@@ -470,8 +473,6 @@ def main(cfg: Config):
                     )
                 )
                 print(f"Generated {generated_reflections} new self-reflection samples")
-            else:
-                print(f"All {total_reflection_samples} reflection samples already completed")
 
             # Check for shutdown before starting interactions
             if is_shutdown_requested():
@@ -479,7 +480,8 @@ def main(cfg: Config):
                 return
 
             # Generate self-interaction data
-            if completed_interaction_samples < cfg.num_interactions:
+            if cfg.interaction and completed_interaction_samples < cfg.num_interactions:
+                print(f"Generating {cfg.num_interactions} self-interaction transcripts")
                 generated_interactions = asyncio.run(
                     generate_all_interactions(
                         client, renderer, cfg,
@@ -489,8 +491,6 @@ def main(cfg: Config):
                     )
                 )
                 print(f"Generated {generated_interactions} new self-interaction transcripts")
-            else:
-                print(f"All {cfg.num_interactions} interaction samples already completed")
 
         except ShutdownRequested:
             print(f"\nShutdown requested, progress saved to {cfg.output_path}")
