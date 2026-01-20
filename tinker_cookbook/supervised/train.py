@@ -371,7 +371,7 @@ async def main(config: Config):
     if start_epoch < config.num_epochs:
         await checkpoint_utils.save_checkpoint_async(
             training_client=training_client,
-            name="final",
+            name=(f"{config.name_prefix}_final" if config.name_prefix else "final"),
             log_path=config.log_path,
             kind="both",
             loop_state={"epoch": config.num_epochs, "batch": n_batches},
