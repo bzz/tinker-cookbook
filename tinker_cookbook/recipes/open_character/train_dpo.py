@@ -16,16 +16,56 @@ With TOML config:
         model_name=meta-llama/Llama-3.1-8B-Instruct  # overrides TOML if present
 """
 
+import asyncio
 from datetime import datetime
 
 import chz
+import tinker
 from tinker_cookbook import cli_utils, model_info
+from tinker_cookbook.eval.evaluators import SamplingClientEvaluator
 from tinker_cookbook.preference import train_dpo
 from tinker_cookbook.preference.dpo_datasets import DPODatasetBuilderFromComparisons
 from tinker_cookbook.recipes.open_character.datasets import ChatDPOPairsBuilder
 from tinker_cookbook.recipes.open_character.utils import load_toml_into_argv_for_chz
-from tinker_cookbook.supervised.types import ChatDatasetBuilderCommonConfig
+from tinker_cookbook.supervised.types import ChatDatasetBuilderCommonConfig, SupervisedDataset
 from tinker_cookbook.utils.lr_scheduling import LRSchedule
+
+
+class DPOPreferenceEvaluator(SamplingClientEvaluator):
+    """Evaluates raw preference metrics on a DPO test set."""
+
+    def __init__(self, dataset: SupervisedDataset, prefix: str = "test"):
+        self.dataset = dataset
+        self.prefix = prefix
+
+    async def __call__(self, sampling_client: tinker.SamplingClient) -> dict[str, float]:
+        data = self.dataset.get_batch(0)  # DPODatasetBuilderFromComparisons alwasy set batch_size=len(dataset) for test
+
+
+        # Split into chosen/rejected pairs
+        chosen_data = [data[i] for i in range(0, len(data), 2)]
+        rejected_data = [data[i] for i in range(1, len(data), 2)]
+
+        # Compute logprobs in parallel
+        async def get_weighted_logprob(datum: tinker.Datum) -> float:
+            lps = await sampling_client.compute_logprobs_async(datum.model_input)
+            weights = datum.loss_fn_inputs["weights"].data
+            return sum(lp * w for lp, w in zip(lps[1:], weights))
+
+        chosen_lps, rejected_lps = await asyncio.gather(
+            asyncio.gather(*[get_weighted_logprob(d) for d in chosen_data]),
+            asyncio.gather(*[get_weighted_logprob(d) for d in rejected_data]),
+        )
+
+        raw_accuracy = sum(c > r for c, r in zip(chosen_lps, rejected_lps)) / len(chosen_lps)
+        raw_margin = sum(c - r for c, r in zip(chosen_lps, rejected_lps)) / len(chosen_lps)
+        chosen_nll = -sum(chosen_lps) / len(chosen_lps)
+
+        return {
+            f"{self.prefix}/raw_accuracy": raw_accuracy,
+            f"{self.prefix}/raw_margin": raw_margin,
+            f"{self.prefix}/chosen_nll": chosen_nll,
+        }
 
 
 @chz.chz
@@ -33,7 +73,7 @@ class CLIConfig:
     """CLI configuration for character DPO training."""
 
     # Required
-    pairs_path: str  # Path to DPO pairs JSONL from generate_dpo_pairs.py
+    pairs_path: str  # Path to DPO pairs JSONL from generate_dpo_pairs.py or HF Dataset
     model_name: str = "meta-llama/Llama-3.1-8B-Instruct"
 
     # Optional checkpoint to continue from
@@ -51,7 +91,10 @@ class CLIConfig:
     # Data parameters
     max_length: int = 2048
     batch_size: int = 32  # Effective pairs per step (batch_size/2 comparisons)
-    test_ratio: float = 0.05
+    test_ratio: float = 0
+    limit: int | None = None  # cap training samples (None = all)
+    hf_dataset_data_dir: str | None = None  # for HF Dataset
+    hf_dataset_data_files: str | None = None
 
     # LoRA parameters
     lora_rank: int = 64
@@ -105,12 +148,26 @@ def cli_main(cli_config: CLIConfig):
     comparison_builder = ChatDPOPairsBuilder(
         pairs_path=cli_config.pairs_path,
         test_ratio=cli_config.test_ratio,
+        max_samples=cli_config.limit,
+        hf_dataset_data_dir=cli_config.hf_dataset_data_dir,
+        hf_dataset_data_files=cli_config.hf_dataset_data_files,
     )
 
     dataset_builder = DPODatasetBuilderFromComparisons(
         common_config=common_config,
         comparison_builder=comparison_builder,
     )
+
+    # Create evaluator builder for test set evaluation
+    def test_evaluator_builder():
+        _, test_dataset = dataset_builder()
+        if test_dataset is None:
+            return None
+        return DPOPreferenceEvaluator(test_dataset, prefix="test")
+
+    evaluator_builders = []
+    if cli_config.test_ratio > 0:
+        evaluator_builders.append(test_evaluator_builder)
 
     # Build full training config
     config = train_dpo.Config(
@@ -129,7 +186,7 @@ def cli_main(cli_config: CLIConfig):
         base_url=cli_config.base_url,
         wandb_project=cli_config.wandb_project,
         wandb_name=wandb_name,
-        evaluator_builders=[],
+        evaluator_builders=evaluator_builders,
     )
 
     print(f"Starting DPO training:")
