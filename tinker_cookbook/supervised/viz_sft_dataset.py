@@ -23,6 +23,7 @@ python -m tinker_cookbook.supervised.viz_sft_dataset \
 
 import chz
 from tinker_cookbook import model_info
+from tinker_cookbook.recipes.open_character.datasets import ChatDPOPairsBuilder
 from tinker_cookbook.renderers import TrainOnWhat
 from tinker_cookbook.supervised.types import (
     ChatDatasetBuilderCommonConfig,
@@ -48,6 +49,8 @@ class Config:
     dataset_name: str | None = None # e.g. openai/gsm8k
     dataset_config: str | None = None  # e.g., "main" for gsm8k
     dataset_split: str = "train" # e.g. "test" or "train[:95%]"
+    dataset_data_dir: str | None = None
+    dataset_data_files: str | None = None
 
     num_epochs: int = 1
     shuffle_seed: int = 0
@@ -67,13 +70,14 @@ def run(cfg: Config):
         train_on_what=cfg.train_on_what,
     )
 
+    kwargs = {}
     dataset_path = cfg.dataset_path
+    module = "tinker_cookbook.recipes.chat_sl.chat_datasets"
     # If user_template is provided, use PromptTemplateDatasetBuilder with extra kwargs
     if cfg.user_template is not None:
         if cfg.assistant_template is None:
             raise ValueError("assistant_template is required when user_template is provided")
         dataset_path = "PromptTemplateBuilder"
-        kwargs = {}
         kwargs.update(
             dataset_name=cfg.dataset_name,
             dataset_config=cfg.dataset_config,
@@ -84,8 +88,22 @@ def run(cfg: Config):
             num_epochs=cfg.num_epochs,
             shuffle_seed=cfg.shuffle_seed,
         )
+    if cfg.dataset_name is not None:  # name and no template -> pairs
+        dataset_path = "ChatDatasetBuilderFromComparisons"
+        module = "tinker_cookbook.preference.preference_datasets"
+        comparison_builder = ChatDPOPairsBuilder(
+            pairs_path=cfg.dataset_name,
+            hf_dataset_data_dir=cfg.dataset_data_dir,
+            hf_dataset_data_files=cfg.dataset_data_files,
+            train_split=cfg.dataset_split,
+            # test_split=cfg.dataset_split,  # 0.05 of train
+            max_samples=cfg.n_examples,
+        )
+        kwargs.update(
+            comparison_builder=comparison_builder,
+        )
     dataset_builder = lookup_func(
-        dataset_path, default_module="tinker_cookbook.recipes.chat_sl.chat_datasets"
+        dataset_path, default_module=module
     )(common_config=common_config, **kwargs)
     assert isinstance(dataset_builder, SupervisedDatasetBuilder)
     tokenizer = get_tokenizer(cfg.model_name)
