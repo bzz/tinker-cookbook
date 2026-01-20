@@ -51,6 +51,12 @@ class CLIConfig:
     max_length: int = 2048
     batch_size: int = 32
     test_size: int = 100  # Held-out for evaluation
+    limit: int | None = None  # cap training samples (None = all)
+    hf_dataset_data_dir: str | None = None  # for HF Dataset
+    hf_dataset_data_files: str | None = None
+    train_on_what: renderers.TrainOnWhat = renderers.TrainOnWhat.ALL_ASSISTANT_MESSAGES
+    replace_system_messages: bool = False  # Replace system msgs before training; Usefull with original dataset tha contains consititutions in system messages
+    assistant_name: str = "Llama"  # Required for replace_system_messages
 
     # LoRA parameters (should match DPO for continuation)
     lora_rank: int = 64
@@ -99,14 +105,18 @@ def cli_main(cli_config: CLIConfig):
         renderer_name=renderer_name,
         max_length=cli_config.max_length,
         batch_size=cli_config.batch_size,
-        # Train on all assistant messages (prompt distillation)
-        train_on_what=renderers.TrainOnWhat.ALL_ASSISTANT_MESSAGES,
+        train_on_what=cli_config.train_on_what,
     )
 
     dataset_builder = IntrospectionDatasetBuilder(
         common_config=common_config,
         introspection_path=cli_config.introspection_path,
         test_size=cli_config.test_size,
+        max_samples=cli_config.limit,
+        hf_dataset_data_dir=cli_config.hf_dataset_data_dir,
+        hf_dataset_data_files=cli_config.hf_dataset_data_files,
+        replace_system_messages=cli_config.replace_system_messages,
+        assistant_name=cli_config.assistant_name,
     )
 
     # Build full training config
@@ -120,6 +130,7 @@ def cli_main(cli_config: CLIConfig):
         num_epochs=cli_config.num_epochs,
         lora_rank=cli_config.lora_rank,
         save_every=cli_config.save_every,
+        name_prefix=cli_config.name_prefix,
         eval_every=cli_config.eval_every,
         base_url=cli_config.base_url,
         wandb_project=cli_config.wandb_project,
