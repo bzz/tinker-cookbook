@@ -26,11 +26,9 @@ Example usage:
 import asyncio
 import json
 import logging
-import math
 import os
 from datetime import datetime
-from functools import partial
-from typing import Any, Sequence
+from typing import Any
 
 import chz
 import tinker
@@ -40,13 +38,15 @@ from tinker_cookbook import checkpoint_utils, cli_utils, renderers
 from tinker_cookbook.distillation.datasets import (
     CompositeDataset,
     DistillationDatasetConfig,
-    PromptOnlyEnv,
+    PromptOnlyDataset,
     TeacherConfig,
 )
 from tinker_cookbook.distillation.train_on_policy import Config, do_sync_training
 from tinker_cookbook.eval.evaluators import SamplingClientEvaluatorBuilder
-from tinker_cookbook.rl.problem_env import ProblemGroupBuilder
-from tinker_cookbook.rl.types import EnvGroupBuilder, RLDataset, RLDatasetBuilder
+from tinker_cookbook.recipes.on_policy_context_distillation.train_on_policy import (
+    ContextAwareSamplingClient,
+)
+from tinker_cookbook.rl.types import RLDatasetBuilder
 from tinker_cookbook.tokenizer_utils import get_tokenizer
 from tinker_cookbook.utils import ml_log
 from tinker_cookbook.utils.trace import scope, trace_init
@@ -125,88 +125,6 @@ Instructions:
 TEACHER_FULL_CONTEXT = STUDENT_CONTEXT + "\n" + TEACHER_ONLY_INSTRUCTIONS
 
 
-# ---------------------------------------------------------------------------
-# Context-aware sampling client wrapper (same as v1)
-# ---------------------------------------------------------------------------
-
-class ContextAwareSamplingClient:
-    """Wraps a SamplingClient to prepend teacher context when computing logprobs.
-
-    The teacher sees TEACHER_FULL_CONTEXT (task def + instructions) while the
-    student only sees STUDENT_CONTEXT (task def + output format).
-    """
-
-    def __init__(self, client: tinker.SamplingClient, context_tokens: list[int]):
-        self.client = client
-        self.context_tokens = context_tokens
-        self.context_len = len(context_tokens)
-
-    async def compute_logprobs_async(
-        self, sequence_input: tinker.ModelInput
-    ) -> list[float]:
-        student_tokens = sequence_input.to_ints()
-        combined_tokens = self.context_tokens + student_tokens
-        combined_input = tinker.ModelInput.from_ints(combined_tokens)
-        full_logprobs = await self.client.compute_logprobs_async(combined_input)
-        return full_logprobs[self.context_len:]
-
-
-# ---------------------------------------------------------------------------
-# File-based prompt dataset (student sees task context as convo_prefix)
-# ---------------------------------------------------------------------------
-
-class FilePromptDatasetV2(RLDataset):
-    """Dataset where student sees STUDENT_CONTEXT as a system message."""
-
-    def __init__(
-        self,
-        prompts: list[str],
-        batch_size: int,
-        group_size: int,
-        renderer: renderers.Renderer,
-        tokenizer: Any,
-        student_convo_prefix: list[renderers.Message],
-        max_prompt_tokens: int | None = None,
-    ):
-        self.prompts = prompts
-        self.batch_size = batch_size
-        self.group_size = group_size
-        self.renderer = renderer
-        self.tokenizer = tokenizer
-        self.student_convo_prefix = student_convo_prefix
-        self.max_prompt_tokens = max_prompt_tokens
-
-    def _truncate_prompt(self, prompt: str) -> str:
-        if self.max_prompt_tokens is None:
-            return prompt
-        tokens = self.tokenizer.encode(prompt)
-        if len(tokens) > self.max_prompt_tokens:
-            tokens = tokens[: self.max_prompt_tokens]
-            return self.tokenizer.decode(tokens)
-        return prompt
-
-    def get_batch(self, index: int) -> Sequence[EnvGroupBuilder]:
-        batch_start = index * self.batch_size
-        batch_end = min((index + 1) * self.batch_size, len(self.prompts))
-        assert batch_start < batch_end, "Incorrect batch size"
-        return [
-            ProblemGroupBuilder(
-                env_thunk=partial(
-                    PromptOnlyEnv,
-                    self._truncate_prompt(prompt),
-                    self.renderer,
-                    convo_prefix=self.student_convo_prefix,
-                ),
-                num_envs=self.group_size,
-                dataset_name="context_distillation_v2",
-            )
-            for prompt in self.prompts[batch_start:batch_end]
-        ]
-
-    def __len__(self) -> int:
-        return math.ceil(len(self.prompts) / self.batch_size)
-
-
 @chz.chz
 class FilePromptDatasetBuilderV2(RLDatasetBuilder):
     """Builder for the v2 prompt dataset with student task context."""
@@ -218,7 +136,7 @@ class FilePromptDatasetBuilderV2(RLDatasetBuilder):
     renderer_name: str
     max_prompt_tokens: int | None = 1024
 
-    async def __call__(self) -> tuple[FilePromptDatasetV2, FilePromptDatasetV2 | None]:
+    async def __call__(self) -> tuple[PromptOnlyDataset, PromptOnlyDataset | None]:
         tokenizer = get_tokenizer(self.model_name_for_tokenizer)
         renderer = renderers.get_renderer(self.renderer_name, tokenizer=tokenizer)
 
@@ -233,14 +151,15 @@ class FilePromptDatasetBuilderV2(RLDatasetBuilder):
             {"role": "system", "content": STUDENT_CONTEXT},
         ]
 
-        train_dataset = FilePromptDatasetV2(
+        train_dataset = PromptOnlyDataset(
             prompts=prompts,
             batch_size=self.groups_per_batch,
             group_size=self.group_size,
             renderer=renderer,
             tokenizer=tokenizer,
-            student_convo_prefix=student_convo_prefix,
             max_prompt_tokens=self.max_prompt_tokens,
+            convo_prefix=student_convo_prefix,
+            dataset_name="context_distillation_v2",
         )
 
         return train_dataset, None
@@ -303,13 +222,8 @@ class CLIConfig:
 def render_teacher_context(renderer_name: str, model_name: str) -> list[int]:
     """Render the full teacher context (task def + instructions + output format) into tokens.
 
-    The teacher sees the FULL original classification prompt as a system message.
-    This gets prepended to the student's token sequence via ContextAwareSamplingClient.
-
-    The student's tokens already contain STUDENT_CONTEXT (task def + output format)
-    as a system message, so the teacher effectively sees the full prompt (with some
-    redundancy in task def/output format). This redundancy is harmless and keeps
-    the implementation simple — the teacher always has full context.
+    The teacher sees TEACHER_FULL_CONTEXT as a system message prepended to the
+    student's sequence via ContextAwareSamplingClient.
     """
     tokenizer = get_tokenizer(model_name)
     renderer = renderers.get_renderer(renderer_name, tokenizer)
@@ -318,7 +232,9 @@ def render_teacher_context(renderer_name: str, model_name: str) -> list[int]:
     context_messages: list[renderers.Message] = [
         {"role": "system", "content": TEACHER_FULL_CONTEXT},
     ]
-    context_input = renderer.build_generation_prompt(context_messages)
+    context_input, _ = renderer.build_supervised_example(
+        context_messages, train_on_what=renderers.TrainOnWhat.ALL_TOKENS
+    )
     context_tokens = context_input.to_ints()
 
     logger.info(f"Teacher full context rendered to {len(context_tokens)} tokens")

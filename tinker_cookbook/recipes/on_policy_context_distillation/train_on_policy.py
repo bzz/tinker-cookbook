@@ -19,11 +19,9 @@ Example usage:
 import asyncio
 import json
 import logging
-import math
 import os
 from datetime import datetime
-from functools import partial
-from typing import Any, Sequence
+from typing import Any
 
 import chz
 import tinker
@@ -34,13 +32,11 @@ from tinker_cookbook.distillation.datasets import (
     CompositeDataset,
     DistillationDatasetConfig,
     PromptOnlyDataset,
-    PromptOnlyEnv,
     TeacherConfig,
 )
 from tinker_cookbook.distillation.train_on_policy import Config, do_sync_training
 from tinker_cookbook.eval.evaluators import SamplingClientEvaluatorBuilder
-from tinker_cookbook.rl.problem_env import ProblemGroupBuilder
-from tinker_cookbook.rl.types import EnvGroupBuilder, RLDataset, RLDatasetBuilder
+from tinker_cookbook.rl.types import RLDatasetBuilder
 from tinker_cookbook.tokenizer_utils import get_tokenizer
 from tinker_cookbook.utils import ml_log
 from tinker_cookbook.utils.trace import scope, trace_init
@@ -92,60 +88,6 @@ class ContextAwareSamplingClient:
         return full_logprobs[self.context_len :]
 
 
-# ---------------------------------------------------------------------------
-# File-based prompt dataset
-# ---------------------------------------------------------------------------
-
-class FilePromptDataset(RLDataset):
-    """Dataset that loads prompts from a JSONL file."""
-
-    def __init__(
-        self,
-        prompts: list[str],
-        batch_size: int,
-        group_size: int,
-        renderer: renderers.Renderer,
-        tokenizer: Any,
-        max_prompt_tokens: int | None = None,
-    ):
-        self.prompts = prompts
-        self.batch_size = batch_size
-        self.group_size = group_size
-        self.renderer = renderer
-        self.tokenizer = tokenizer
-        self.max_prompt_tokens = max_prompt_tokens
-
-    def _truncate_prompt(self, prompt: str) -> str:
-        if self.max_prompt_tokens is None:
-            return prompt
-        tokens = self.tokenizer.encode(prompt)
-        if len(tokens) > self.max_prompt_tokens:
-            tokens = tokens[: self.max_prompt_tokens]
-            return self.tokenizer.decode(tokens)
-        return prompt
-
-    def get_batch(self, index: int) -> Sequence[EnvGroupBuilder]:
-        batch_start = index * self.batch_size
-        batch_end = min((index + 1) * self.batch_size, len(self.prompts))
-        assert batch_start < batch_end, "Incorrect batch size"
-        return [
-            ProblemGroupBuilder(
-                env_thunk=partial(
-                    PromptOnlyEnv,
-                    self._truncate_prompt(prompt),
-                    self.renderer,
-                    convo_prefix=None,  # Student sees NO context
-                ),
-                num_envs=self.group_size,
-                dataset_name="context_distillation",
-            )
-            for prompt in self.prompts[batch_start:batch_end]
-        ]
-
-    def __len__(self) -> int:
-        return math.ceil(len(self.prompts) / self.batch_size)
-
-
 @chz.chz
 class FilePromptDatasetBuilder(RLDatasetBuilder):
     """Builder for a file-based prompt dataset."""
@@ -157,7 +99,7 @@ class FilePromptDatasetBuilder(RLDatasetBuilder):
     renderer_name: str
     max_prompt_tokens: int | None = 1024
 
-    async def __call__(self) -> tuple[FilePromptDataset, FilePromptDataset | None]:
+    async def __call__(self) -> tuple[PromptOnlyDataset, PromptOnlyDataset | None]:
         tokenizer = get_tokenizer(self.model_name_for_tokenizer)
         renderer = renderers.get_renderer(self.renderer_name, tokenizer=tokenizer)
 
@@ -168,13 +110,15 @@ class FilePromptDatasetBuilder(RLDatasetBuilder):
                 data = json.loads(line.strip())
                 prompts.append(data["sentence"])
 
-        train_dataset = FilePromptDataset(
+        train_dataset = PromptOnlyDataset(
             prompts=prompts,
             batch_size=self.groups_per_batch,
             group_size=self.group_size,
             renderer=renderer,
             tokenizer=tokenizer,
             max_prompt_tokens=self.max_prompt_tokens,
+            convo_prefix=None,  # Student sees NO context
+            dataset_name="context_distillation",
         )
 
         return train_dataset, None
@@ -251,15 +195,15 @@ def render_teacher_context(renderer_name: str, model_name: str) -> list[int]:
     tokenizer = get_tokenizer(model_name)
     renderer = renderers.get_renderer(renderer_name, tokenizer)
 
-    # Build the teacher's context as a conversation prefix.
-    # We use a placeholder query that will be replaced by the actual student
-    # tokens; we only need the context part here.
-    # The context is the classification prompt as a system-level instruction.
-    # We render it as a user message followed by a generation prompt boundary.
+    # Build only the teacher's message prefix; do not append generation suffix
+    # (assistant header / thinking block), because student tokens already carry
+    # the user+assistant turns that follow this system message.
     context_messages: list[renderers.Message] = [
         {"role": "system", "content": LANGUAGE_CLASSIFICATION_PROMPT.format(text="")},
     ]
-    context_input = renderer.build_generation_prompt(context_messages)
+    context_input, _ = renderer.build_supervised_example(
+        context_messages, train_on_what=renderers.TrainOnWhat.ALL_TOKENS
+    )
     context_tokens = context_input.to_ints()
 
     logger.info(f"Teacher context rendered to {len(context_tokens)} tokens")
