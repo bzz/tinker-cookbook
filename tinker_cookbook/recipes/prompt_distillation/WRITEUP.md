@@ -41,61 +41,102 @@ All experiments use `Qwen/Qwen3-30B-A3B` with LoRA rank 32. The `qwen3_disable_t
 1. First train with off-policy SL (30 steps)
 2. Then continue with on-policy KL from the SL checkpoint (20 steps, learning rate 5e-5)
 
+### GRPO Reward Only (Experiment 4)
+
+1. Student generates responses using the short prompt
+2. Reward = 1 if the predicted label matches the teacher-generated ground truth, else 0
+3. No teacher KL penalty — only the accuracy reward provides signal
+4. Constant-reward groups are filtered (GRPO-style)
+5. Uses importance sampling loss, 32 groups/batch, **8** samples/group, learning rate 1e-4, temp 1.0, 30 steps
+
+### Combined Reward + KL (Experiment 5)
+
+1. Same accuracy reward as GRPO, **plus** teacher KL penalty
+2. All groups kept (KL provides signal even when all samples agree)
+3. Uses importance sampling loss, 32 groups/batch, **8** samples/group, learning rate 1e-4, temp 1.0, kl_coef 1.0, 30 steps
+
 ## Results
 
 ### Accuracy on held-out test set (420 sentences, gold labels from teacher)
 
-| Method | Step 0 | Best Accuracy | Parse Rate |
-|---|---|---|---|
-| Base model (no training) | 81.5% | — | 84.5% |
-| Off-policy SL only | — | **86.5%** | **98.5%** |
-| On-policy KL only | 81.0% | 84.5% | 90.5% |
-| Off-policy → on-policy | 86.5% | 86.5% | 98.5% |
+| # | Method | Step 0 | Best Accuracy | Final Parse Rate |
+|---|---|---|---|---|
+| — | Base model (no training) | 81.5% | — | 84.5% |
+| 1 | Off-policy SL | — | 86.5% | 98.5% |
+| 2 | On-policy KL only | 81.0% | 84.5% | 90.5% |
+| 3 | Off-policy → on-policy KL | 86.5% | 86.5% | 98.5% |
+| 4 | **GRPO reward only** | 81.0% | **93.5%** | **100%** |
+| 5 | Reward + KL | 81.0% | 84.0% | 87.0% |
 
 ### Key observations
 
-1. **Off-policy SL achieves the best accuracy** (86.5%) with a substantial improvement over the base model. It also dramatically improves parse rate from 84.5% to 98.5%, meaning the student learns the output format very reliably.
+1. **GRPO (reward_only) dominates** at 93.5% accuracy — a +12pp improvement over the base model and +7pp over the best distillation-only method. It also achieves a perfect 100% parse rate. The accuracy reward directly optimizes the target metric, which is decisive for this classification task.
 
-2. **On-policy KL improves accuracy modestly** from 81% to 84.5% (+3.5pp). The improvement comes primarily in the first 5 steps. The teacher KL decreases over training, indicating the student is successfully minimizing divergence from the teacher.
+2. **Off-policy SL is the second-best method** (86.5%), with excellent parse rate (98.5%). It benefits from training on correctly-formatted examples.
 
-3. **The combo approach doesn't improve over off-policy alone** in this setting. Starting from the SL checkpoint (86.5%), on-policy KL training slightly degrades performance to 84-86%, and parse rate drops from 98.5% to 86.5%. This suggests the on-policy training, while matching the teacher's token-level distribution, may perturb the already-good SL solution.
+3. **KL-only context distillation provides a modest improvement** (84.5%). It learns from the teacher's full distribution but doesn't directly optimize accuracy.
 
-4. **Parse rate vs accuracy tradeoff**: Off-policy SL is very effective at teaching the output format (98.5% parse rate) because it trains directly on correctly-formatted examples. On-policy KL produces more diverse outputs, some of which don't match the expected format.
+4. **Combining reward + KL underperforms GRPO alone** (84.0% vs 93.5%). The KL penalty retains all groups (even all-correct ones with zero reward advantage), diluting the accuracy signal. In contrast, GRPO filters constant-reward groups so every training datum carries gradient.
+
+5. **GRPO is data-efficient despite extreme filtering**: At step 0, only 2 of 32 groups survived filtering (94% dropped). But those 2 groups provided enough signal to drive rapid learning. By step 10, accuracy reached 92.5%.
+
+### GRPO group filtering over training
+
+| Step | Groups Kept / Total | Test Accuracy |
+|---|---|---|
+| 0 | 2 / 32 | 81.0% |
+| 5 | 4 / 32 | 83.5% |
+| 10 | 2 / 32 | 92.5% |
+| 15 | 1 / 32 | 92.0% |
+| 20+ | 0 / 32 | 94.0% |
+
+After step ~18, no groups have mixed rewards — the model is fully consistent. Training effectively stops because all groups are filtered, yet the model has already converged to 93-94% accuracy.
 
 ### Teacher KL during on-policy training
 
 The reverse KL (log p_student - log p_teacher) averaged over completion tokens:
 
-| Step | On-Policy Only | Combo |
-|---|---|---|
-| 0 | 0.052 | 0.087 |
-| 5 | 0.059 | 0.065 |
-| 10 | 0.065 | 0.048 |
-| 15 | 0.004 | 0.003 |
-| 20 | 0.021 | — |
+| Step | KL Only (Exp 2) | SL→KL (Exp 3) | Reward+KL (Exp 5) |
+|---|---|---|---|
+| 0 | 0.052 | 0.087 | 0.041 |
+| 5 | 0.059 | 0.065 | 0.021 |
+| 10 | 0.065 | 0.048 | 0.066 |
+| 15 | 0.004 | 0.003 | 0.004 |
+| 20 | 0.021 | — | 0.025 |
 
-KL decreases over training in both settings, confirming the student is learning from the teacher's distribution. The combo starts with higher KL because the SL-trained student has been optimized for a different objective (point predictions rather than matching the full distribution).
+KL decreases in all settings, confirming teacher-student convergence. The reward+KL and KL-only runs show nearly identical KL dynamics, suggesting the accuracy reward has minimal interaction with the distribution-matching objective.
 
 ## Discussion
 
-### Why off-policy outperforms on-policy here
+### Why GRPO outperforms distillation here
 
-The language classification task has several properties that favor off-policy distillation:
+GRPO directly optimizes the classification accuracy metric. For tasks with:
+- **Short, deterministic outputs** (just a language code)
+- **A clear reward signal** (binary correct/incorrect)
+- **Small output space** (13 labels)
 
-1. **Short, deterministic outputs**: The correct response is just "Final Answer: xx" — there's little benefit to modeling the full output distribution vs. learning the correct point prediction.
+...reward-based RL is more direct and efficient than distribution matching. The teacher's detailed instructions are useful for producing correct labels, but KL-matching the teacher's full token distribution over "Final Answer: xx" carries limited additional information beyond the correctness of the final label.
 
-2. **High teacher accuracy**: The teacher correctly classifies most inputs, so the off-policy dataset is high quality. On-policy KL matching can sometimes push the student toward the teacher's uncertainty (e.g., spreading probability across similar labels) rather than the correct answer.
+### Why reward + KL underperforms pure GRPO
 
-3. **Small output space**: With only 13 possible labels, there's limited room for on-policy exploration to find better solutions than the teacher's labels.
+The combined mode keeps all groups (since KL provides signal even with uniform rewards), but most of those groups have zero reward-based advantage. The KL adjustment to advantages is small relative to the reward signal. This means the model trains on many "low-signal" datums, diluting the strong reward gradient from the informative (mixed-reward) groups. Pure GRPO avoids this by discarding zero-gradient groups entirely.
 
-On-policy distillation is expected to shine more in tasks with long, open-ended outputs (e.g., reasoning, code generation, multi-turn dialogue) where the full output distribution matters and off-policy data is stale after few training steps.
+### When each method is appropriate
+
+| Scenario | Recommended Method |
+|---|---|
+| Classification with ground truth labels | **GRPO** (reward_only) |
+| No ground truth, only teacher access | **KL distillation** (kl_only) |
+| Noisy/partial labels + teacher | **reward_and_kl** |
+| Cold start, then refinement | **Off-policy SL → GRPO** |
+| Long-form generation (reasoning, code) | **On-policy KL** or **reward_and_kl** |
 
 ### Limitations
 
 - **Small scale**: 1680 training sentences, 420 test sentences. Larger datasets may show different trends.
 - **Single model**: Only Qwen3-30B-A3B tested. Results may vary with different model families/sizes.
-- **Same teacher and student base**: Both share the same base model. A stronger teacher (e.g., larger model) may show larger on-policy gains.
-- **Short training**: 30 steps is sufficient for this small dataset but may not reveal longer-term dynamics.
+- **Same teacher and student base**: Both share the same base model. A stronger teacher (e.g., larger model) may show larger distillation gains.
+- **Classification-specific**: GRPO's advantage may be smaller for open-ended generation tasks where KL matching is more valuable.
 
 ## Reproduction
 
@@ -132,15 +173,39 @@ python -m tinker_cookbook.recipes.prompt_distillation.train_on_policy \
 ### Experiment 3: Off-policy → on-policy
 
 ```bash
-# First run Experiment 1, then use its checkpoint:
 python -m tinker_cookbook.recipes.prompt_distillation.train_on_policy \
-    model_name=Qwen/Qwen3-30B-A3B \
-    renderer_name=qwen3_disable_thinking \
+    mode=kl_only \
     load_checkpoint_path=<checkpoint_from_exp1> \
     log_path=data/context_distillation/logs/exp3_combo \
     gold_labels_path=data/context_distillation/gold_labels.json \
     learning_rate=5e-5 lora_rank=32 groups_per_batch=32 group_size=4 max_steps=20
 ```
+
+### Experiment 4: GRPO reward only
+
+```bash
+python -m tinker_cookbook.recipes.prompt_distillation.train_on_policy \
+    mode=reward_only \
+    log_path=data/context_distillation/logs/exp4_reward_only \
+    gold_labels_path=data/context_distillation/gold_labels.json \
+    train_labels_path=data/context_distillation/train_labels.json \
+    learning_rate=1e-4 lora_rank=32 groups_per_batch=32 group_size=8 \
+    max_tokens=50 temperature=1.0 kl_penalty_coef=0 max_steps=30
+```
+
+### Experiment 5: Combined reward + KL
+
+```bash
+python -m tinker_cookbook.recipes.prompt_distillation.train_on_policy \
+    mode=reward_and_kl \
+    log_path=data/context_distillation/logs/exp5_reward_and_kl \
+    gold_labels_path=data/context_distillation/gold_labels.json \
+    train_labels_path=data/context_distillation/train_labels.json \
+    learning_rate=1e-4 lora_rank=32 groups_per_batch=32 group_size=8 \
+    max_tokens=50 temperature=1.0 kl_penalty_coef=1.0 max_steps=30
+```
+
+All experiments use `model_name=Qwen/Qwen3-30B-A3B` and `renderer_name=qwen3_disable_thinking` (defaults in CLI).
 
 ## References
 
