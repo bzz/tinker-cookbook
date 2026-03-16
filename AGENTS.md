@@ -133,3 +133,22 @@ pytest tests/
 ```
 
 For debugging, shrink workloads via `n_batches`, `batch_size`, `group_size` in dataset builders.
+
+---
+
+## Cursor Cloud specific instructions
+
+This is a Python client library (no servers to start). Development uses `uv` as the package manager.
+
+**Lint / type-check / test commands** (see README "Development Setup" and Testing section above):
+- `uv run ruff check .` — linter
+- `uv run ruff format --check .` — format check
+- `uv run pyright` — type checker (expect errors from uninstalled optional extras like `verifiers`, `litellm`, `wandb`, `neptune-scale`, `trackio`; these are not regressions)
+- `uv run pytest tinker_cookbook/` — unit tests (no API key needed)
+- `uv run pytest tests/` — smoke/integration tests (requires `TINKER_API_KEY` + network)
+
+**Gotchas:**
+- `pyright` errors from optional-extra imports (e.g. `reportMissingImports` for `wandb`, `litellm`, `verifiers`) are expected when only the `dev` extra is installed. Only errors in core `tinker_cookbook/` code (excluding optional-extra modules) indicate real regressions.
+- The vendored file `kimi-k2.5-hf-tokenizer/tool_declaration_ts.py` is excluded from both ruff and pyright in `pyproject.toml` and `.pre-commit-config.yaml`.
+- Tokenizer loading (`get_tokenizer` in `tinker_cookbook/tokenizer_utils.py`) downloads from HuggingFace Hub; some gated models require `HF_TOKEN`.
+- Running actual training recipes requires `TINKER_API_KEY` for the remote GPU service.
