@@ -1,27 +1,31 @@
 """
 On-policy context distillation for language classification.
 
-Teacher sees a full detailed classification prompt (task + instructions + output format),
-while the student sees only a short prompt (task + output format). The student learns
-to internalize the teacher's instructions via on-policy KL penalty.
+Supports three training modes via the ``mode`` CLI flag:
 
-Based on the context distillation idea:
-  https://github.com/thinking-machines-lab/tinker-project-ideas
+  kl_only        – KL penalty against the teacher (context distillation, default)
+  reward_only    – GRPO-style accuracy reward with no teacher
+  reward_and_kl  – accuracy reward combined with teacher KL penalty
 
-Experiments:
-    # On-policy context distillation from scratch
+Examples:
+    # KL-only context distillation
     python -m tinker_cookbook.recipes.prompt_distillation.train_on_policy \
-        model_name=Qwen/Qwen3-30B-A3B \
-        groups_per_batch=32 \
-        group_size=4 \
-        max_steps=30
+        mode=kl_only groups_per_batch=32 group_size=4 max_steps=30 \
+        wandb_project=ctx_distill
 
-    # On-policy after off-policy SFT (combo)
+    # GRPO-style reward only
     python -m tinker_cookbook.recipes.prompt_distillation.train_on_policy \
-        model_name=Qwen/Qwen3-30B-A3B \
-        load_checkpoint_path=tinker://... \
-        groups_per_batch=32 \
-        max_steps=20
+        mode=reward_only groups_per_batch=32 group_size=8 \
+        temperature=1.0 kl_penalty_coef=0 max_steps=30 \
+        train_labels_path=data/context_distillation/train_labels.json \
+        wandb_project=ctx_distill
+
+    # Combined reward + KL
+    python -m tinker_cookbook.recipes.prompt_distillation.train_on_policy \
+        mode=reward_and_kl groups_per_batch=32 group_size=8 \
+        temperature=1.0 kl_penalty_coef=1.0 max_steps=30 \
+        train_labels_path=data/context_distillation/train_labels.json \
+        wandb_project=ctx_distill
 """
 
 import asyncio
@@ -199,12 +203,24 @@ async def generate_gold_labels(
 # ---------------------------------------------------------------------------
 
 class LangClassificationEnv(ProblemEnv):
-    """Zero-reward environment for context distillation of language classification."""
+    """Environment for language classification with optional accuracy reward.
 
-    def __init__(self, text: str, student_prompt_template: str, renderer: renderers.Renderer):
+    When ``gold_label`` is provided the reward is 1.0 for a correct prediction
+    and 0.0 otherwise (GRPO-style).  When ``gold_label`` is None the reward is
+    always 0.0 (pure KL distillation).
+    """
+
+    def __init__(
+        self,
+        text: str,
+        student_prompt_template: str,
+        renderer: renderers.Renderer,
+        gold_label: str | None = None,
+    ):
         super().__init__(renderer, convo_prefix=None, format_coef=0.0)
         self.text = text
         self._question = student_prompt_template.format(text=text)
+        self.gold_label = gold_label
 
     def get_question(self) -> str:
         return self._question
@@ -216,16 +232,23 @@ class LangClassificationEnv(ProblemEnv):
         return False
 
     def get_reference_answer(self) -> str:
-        return ""
+        return self.gold_label or ""
 
     async def step(self, action: Action) -> StepResult:
-        self.renderer.parse_response(action)
+        message, _ = self.renderer.parse_response(action)
+        content = renderers.get_text_content(message)
+        predicted = parse_label(content)
+
+        correct = 0.0
+        if self.gold_label is not None and predicted is not None:
+            correct = 1.0 if predicted == self.gold_label else 0.0
+
         return StepResult(
-            reward=0.0,
+            reward=correct,
             episode_done=True,
             next_observation=tinker.ModelInput.empty(),
             next_stop_condition=self.stop_condition,
-            metrics={},
+            metrics={"correct": correct, "parsed": float(predicted is not None)},
         )
 
 
@@ -234,7 +257,11 @@ class LangClassificationEnv(ProblemEnv):
 # ---------------------------------------------------------------------------
 
 class ContextDistillationDataset(RLDataset):
-    """Provides multilingual sentences for context distillation training."""
+    """Provides multilingual sentences for context distillation training.
+
+    ``train_labels`` is an optional parallel list of gold labels.  When supplied
+    the environment returns an accuracy reward; when ``None`` all rewards are 0.
+    """
 
     def __init__(
         self,
@@ -243,16 +270,19 @@ class ContextDistillationDataset(RLDataset):
         group_size: int,
         renderer: renderers.Renderer,
         student_prompt_template: str,
+        train_labels: list[str] | None = None,
     ):
         self.texts = texts
         self.groups_per_batch = groups_per_batch
         self.group_size = group_size
         self.renderer = renderer
         self.student_prompt_template = student_prompt_template
+        self.train_labels = train_labels
 
     def get_batch(self, index: int) -> Sequence[EnvGroupBuilder]:
         start = index * self.groups_per_batch
         end = min((index + 1) * self.groups_per_batch, len(self.texts))
+        labels = self.train_labels[start:end] if self.train_labels else [None] * (end - start)
         return [
             ProblemGroupBuilder(
                 env_thunk=partial(
@@ -260,11 +290,12 @@ class ContextDistillationDataset(RLDataset):
                     text=text,
                     student_prompt_template=self.student_prompt_template,
                     renderer=self.renderer,
+                    gold_label=label,
                 ),
                 num_envs=self.group_size,
                 dataset_name="lang_classification",
             )
-            for text in self.texts[start:end]
+            for text, label in zip(self.texts[start:end], labels)
         ]
 
     def get_batch_texts(self, index: int) -> list[str]:
@@ -462,12 +493,20 @@ async def incorporate_kl_penalty_context_distillation(
 # Config & training loop
 # ---------------------------------------------------------------------------
 
+VALID_MODES = ("kl_only", "reward_only", "reward_and_kl")
+
+
 @chz.chz
 class Config:
     model_name: str
     log_path: str = chz.field(munger=lambda _, s: os.path.expanduser(s))
     renderer_name: str | None = None
     load_checkpoint_path: str | None = None
+
+    # kl_only: pure context-distillation KL (zero reward)
+    # reward_only: GRPO-style accuracy reward (no teacher)
+    # reward_and_kl: accuracy reward + teacher KL
+    mode: str = "kl_only"
 
     learning_rate: float = 1e-4
     lora_rank: int = 32
@@ -491,10 +530,17 @@ class Config:
     wandb_name: str | None = None
 
     gold_labels_path: str | None = None
+    train_labels_path: str | None = None
     max_eval_samples: int = 200
 
 
 async def main(cfg: Config):
+    assert cfg.mode in VALID_MODES, f"mode must be one of {VALID_MODES}, got {cfg.mode!r}"
+
+    use_kl = cfg.mode in ("kl_only", "reward_and_kl")
+    use_reward = cfg.mode in ("reward_only", "reward_and_kl")
+    logger.info("Mode: %s (use_reward=%s, use_kl=%s)", cfg.mode, use_reward, use_kl)
+
     ml_logger = ml_log.setup_logging(
         log_dir=cfg.log_path,
         wandb_project=cfg.wandb_project,
@@ -547,8 +593,8 @@ async def main(cfg: Config):
     )
     renderer = renderers.get_renderer(renderer_name, tokenizer=tokenizer)
 
-    # Teacher sampling client (base model, no LoRA)
-    teacher_client = service_client.create_sampling_client(base_model=cfg.model_name)
+    # Base-model sampling client (used for teacher KL and/or label generation)
+    base_client = service_client.create_sampling_client(base_model=cfg.model_name)
 
     # Load data
     sentences = load_multilingual_sentences()
@@ -562,12 +608,30 @@ async def main(cfg: Config):
         logger.info("Loaded %d gold labels from %s", len(gold_labels), cfg.gold_labels_path)
     else:
         logger.info("Generating gold labels for %d test sentences...", len(test_texts))
-        gold_labels = await generate_gold_labels(test_texts, teacher_client, renderer, tokenizer)
-        label_path = os.path.join(cfg.log_path, "gold_labels.json")
+        gold_labels = await generate_gold_labels(test_texts, base_client, renderer, tokenizer)
         os.makedirs(cfg.log_path, exist_ok=True)
+        label_path = os.path.join(cfg.log_path, "gold_labels.json")
         with open(label_path, "w") as f:
             json.dump(gold_labels, f)
         logger.info("Saved gold labels to %s", label_path)
+
+    # Training labels (only for reward-based modes)
+    train_labels: list[str] | None = None
+    if use_reward:
+        if cfg.train_labels_path and os.path.exists(cfg.train_labels_path):
+            with open(cfg.train_labels_path) as f:
+                train_labels = json.load(f)
+            logger.info("Loaded %d train labels from %s", len(train_labels), cfg.train_labels_path)
+        else:
+            logger.info("Generating train labels for %d sentences...", len(train_texts))
+            train_labels = await generate_gold_labels(
+                train_texts, base_client, renderer, tokenizer
+            )
+            os.makedirs(cfg.log_path, exist_ok=True)
+            tl_path = os.path.join(cfg.log_path, "train_labels.json")
+            with open(tl_path, "w") as f:
+                json.dump(train_labels, f)
+            logger.info("Saved train labels to %s", tl_path)
 
     # Dataset and evaluator
     dataset = ContextDistillationDataset(
@@ -576,6 +640,7 @@ async def main(cfg: Config):
         group_size=cfg.group_size,
         renderer=renderer,
         student_prompt_template=STUDENT_PROMPT,
+        train_labels=train_labels,
     )
     evaluator = LangClassificationEvaluator(
         test_texts=test_texts,
@@ -589,17 +654,23 @@ async def main(cfg: Config):
     num_batches = len(dataset)
     if cfg.max_steps is not None:
         num_batches = min(cfg.max_steps, num_batches)
-    logger.info("Training for %d steps", num_batches)
+    logger.info("Training for %d steps (mode=%s)", num_batches, cfg.mode)
 
     # Initial sampling client
     sampling_client, _ = await save_checkpoint_and_get_sampling_client(
         training_client, start_batch, cfg.log_path, cfg.save_every
     )
 
+    # In reward_only mode, filter constant-reward groups so zero-gradient
+    # batches don't dilute training.  In KL modes the KL penalty still
+    # provides signal even when all rewards are identical.
+    filter_constant_reward = cfg.mode == "reward_only"
+
     # Training loop
     for i_batch in range(start_batch, num_batches):
         metrics: dict[str, Any] = {
             "progress/batch": i_batch,
+            "progress/mode": cfg.mode,
             "optim/lr": cfg.learning_rate,
             "progress/done_frac": (i_batch + 1) / num_batches,
         }
@@ -624,7 +695,7 @@ async def main(cfg: Config):
                         builder,
                         temperature=cfg.temperature,
                         max_tokens=cfg.max_tokens,
-                        do_remove_constant_reward_groups=False,
+                        do_remove_constant_reward_groups=filter_constant_reward,
                     )
                     for builder in env_group_builders_P
                 ]
@@ -643,6 +714,12 @@ async def main(cfg: Config):
             ml_logger.log_metrics(metrics, step=i_batch)
             continue
 
+        # Log how many groups survived constant-reward filtering
+        n_total = len(env_group_builders_P)
+        n_kept = len(trajectory_groups_P)
+        metrics["train/groups_kept"] = float(n_kept)
+        metrics["train/groups_filtered"] = float(n_total - n_kept)
+
         # Compute advantages and assemble training data
         with timed("assemble", metrics):
             advantages_P = compute_advantages(trajectory_groups_P)
@@ -651,14 +728,14 @@ async def main(cfg: Config):
         if data_D:
             logger.info(colorize_example(data_D[0], tokenizer, key="mask"))
 
-        # Context-distillation KL penalty
-        if cfg.kl_penalty_coef > 0 and data_D:
+        # Context-distillation KL penalty (only in KL modes)
+        if use_kl and cfg.kl_penalty_coef > 0 and data_D:
             with timed("kl_penalty", metrics):
                 kl_metrics = await incorporate_kl_penalty_context_distillation(
                     data_D=data_D,
                     metadata_D=metadata_D,
                     texts_P=filtered_texts_P,
-                    teacher_client=teacher_client,
+                    teacher_client=base_client,
                     teacher_prompt_template=TEACHER_PROMPT,
                     renderer=renderer,
                     kl_penalty_coef=cfg.kl_penalty_coef,
@@ -722,6 +799,9 @@ async def main(cfg: Config):
 
 @chz.chz
 class CLIConfig:
+    # Algorithm: kl_only | reward_only | reward_and_kl
+    mode: str = "kl_only"
+
     model_name: str = "Qwen/Qwen3-30B-A3B"
     log_path: str | None = None
     load_checkpoint_path: str | None = None
@@ -746,6 +826,7 @@ class CLIConfig:
     wandb_name: str | None = None
 
     gold_labels_path: str | None = None
+    train_labels_path: str | None = None
     max_eval_samples: int = 200
 
     behavior_if_log_dir_exists: cli_utils.LogdirBehavior = "ask"
@@ -762,9 +843,10 @@ async def cli_main(cli_config: CLIConfig):
     model_short = cli_config.model_name.replace("/", "-")
     date_str = datetime.now().strftime("%Y-%m-%d-%H-%M")
     run_name = (
-        f"on_policy_ctx_distill-{model_short}-"
+        f"{cli_config.mode}-{model_short}-"
         f"{cli_config.lora_rank}rank-{cli_config.learning_rate}lr-"
-        f"{cli_config.groups_per_batch}batch-{date_str}"
+        f"{cli_config.groups_per_batch}batch-g{cli_config.group_size}-"
+        f"t{cli_config.temperature}-kl{cli_config.kl_penalty_coef}-{date_str}"
     )
 
     log_path = cli_config.log_path or f"/tmp/tinker-examples/prompt_distillation/{run_name}"
@@ -773,6 +855,7 @@ async def cli_main(cli_config: CLIConfig):
     cli_utils.check_log_dir(log_path, behavior_if_exists=cli_config.behavior_if_log_dir_exists)
 
     config = Config(
+        mode=cli_config.mode,
         model_name=cli_config.model_name,
         log_path=log_path,
         renderer_name=renderer_name,
@@ -792,6 +875,7 @@ async def cli_main(cli_config: CLIConfig):
         wandb_project=cli_config.wandb_project,
         wandb_name=wandb_name,
         gold_labels_path=cli_config.gold_labels_path,
+        train_labels_path=cli_config.train_labels_path,
         max_eval_samples=cli_config.max_eval_samples,
     )
 
