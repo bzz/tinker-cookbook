@@ -7,25 +7,29 @@ Supports three training modes via the ``mode`` CLI flag:
   reward_only    – GRPO-style accuracy reward with no teacher
   reward_and_kl  – accuracy reward combined with teacher KL penalty
 
+All modes read from a ``dataset_dir`` containing ``train_set.jsonl`` and
+``test_set.jsonl`` (produced by ``create_labeled_dataset.py``).
+
 Examples:
     # KL-only context distillation
     python -m tinker_cookbook.recipes.prompt_distillation.train_on_policy \
-        mode=kl_only groups_per_batch=32 group_size=4 max_steps=30 \
-        wandb_project=ctx_distill
+        mode=kl_only dataset_dir=data/context_distillation \
+        groups_per_batch=32 group_size=4 max_steps=30
 
     # GRPO-style reward only
     python -m tinker_cookbook.recipes.prompt_distillation.train_on_policy \
-        mode=reward_only groups_per_batch=32 group_size=8 \
-        temperature=1.0 kl_penalty_coef=0 max_steps=30 \
-        train_labels_path=data/context_distillation/train_labels.json \
-        wandb_project=ctx_distill
+        mode=reward_only dataset_dir=data/context_distillation \
+        groups_per_batch=32 group_size=8 temperature=1.0 kl_penalty_coef=0 max_steps=30
 
     # Combined reward + KL
     python -m tinker_cookbook.recipes.prompt_distillation.train_on_policy \
-        mode=reward_and_kl groups_per_batch=32 group_size=8 \
-        temperature=1.0 kl_penalty_coef=1.0 max_steps=30 \
-        train_labels_path=data/context_distillation/train_labels.json \
-        wandb_project=ctx_distill
+        mode=reward_and_kl dataset_dir=data/context_distillation \
+        groups_per_batch=32 group_size=8 temperature=1.0 kl_penalty_coef=1.0 max_steps=30
+
+    # Off-policy SL (uses the same dataset)
+    python -m tinker_cookbook.recipes.prompt_distillation.train_on_policy \
+        mode=off_policy_sl dataset_dir=data/context_distillation \
+        learning_rate=1e-4 batch_size=128 num_epochs=4 max_steps=30
 """
 
 import asyncio
@@ -145,57 +149,37 @@ def parse_label(response: str) -> str | None:
 
 
 # ---------------------------------------------------------------------------
-# Data loading
+# Data loading — single source of truth: {train,test}_set.jsonl
 # ---------------------------------------------------------------------------
 
-DATA_PATH = os.path.join(os.path.dirname(__file__), "..", "..", "example_data", "multilingual.txt")
+DEFAULT_DATASET_DIR = os.path.join(os.path.dirname(__file__), "..", "..", "..", "data", "context_distillation")
 
 
-def load_multilingual_sentences(path: str = DATA_PATH) -> list[str]:
+def load_dataset_jsonl(path: str) -> tuple[list[str], list[str]]:
+    """Load a ``{text, label}`` JSONL file.  Returns ``(texts, labels)``."""
+    texts: list[str] = []
+    labels: list[str] = []
     with open(path) as f:
-        return [line.strip() for line in f if line.strip()]
+        for line in f:
+            row = json.loads(line)
+            texts.append(row["text"])
+            labels.append(row["label"])
+    return texts, labels
 
 
-def split_train_test(
-    sentences: list[str], test_fraction: float = 0.2, group_size_in_file: int = 15
-) -> tuple[list[str], list[str]]:
-    """Split by sentence groups to prevent data leakage between translations."""
-    n_groups = len(sentences) // group_size_in_file
-    n_test_groups = max(1, int(n_groups * test_fraction))
-    n_train_groups = n_groups - n_test_groups
-    train_end = n_train_groups * group_size_in_file
-    test_end = n_groups * group_size_in_file
-    return sentences[:train_end], sentences[train_end:test_end]
-
-
-# ---------------------------------------------------------------------------
-# Gold label generation
-# ---------------------------------------------------------------------------
-
-async def generate_gold_labels(
-    texts: list[str],
-    sampling_client: tinker.SamplingClient,
-    renderer: renderers.Renderer,
-    tokenizer: Tokenizer,
-) -> list[str]:
-    """Generate classification labels using the teacher model with the full prompt."""
-    params = tinker.SamplingParams(
-        max_tokens=100, temperature=0.15, stop=renderer.get_stop_sequences()
-    )
-
-    async def label_one(text: str) -> str:
-        prompt = TEACHER_PROMPT.format(text=text)
-        convo: list[renderers.Message] = [{"role": "user", "content": prompt}]
-        prompt_input = renderer.build_generation_prompt(convo)
-        result = await sampling_client.sample_async(
-            prompt=prompt_input, sampling_params=params, num_samples=1
-        )
-        response = tokenizer.decode(result.sequences[0].tokens)
-        label = parse_label(response)
-        return label if label is not None else "ot"
-
-    labels = await asyncio.gather(*[label_one(t) for t in texts])
-    return list(labels)
+def dataset_to_sl_conversations(
+    texts: list[str], labels: list[str], prompt_template: str
+) -> list[dict]:
+    """Convert (text, label) pairs into ``{"messages": [...]}`` dicts for SL."""
+    convos = []
+    for text, label in zip(texts, labels):
+        convos.append({
+            "messages": [
+                {"role": "user", "content": prompt_template.format(text=text)},
+                {"role": "assistant", "content": f"Final Answer: {label}"},
+            ]
+        })
+    return convos
 
 
 # ---------------------------------------------------------------------------
@@ -503,6 +487,9 @@ class Config:
     renderer_name: str | None = None
     load_checkpoint_path: str | None = None
 
+    # Directory containing train_set.jsonl and test_set.jsonl
+    dataset_dir: str = DEFAULT_DATASET_DIR
+
     # kl_only: pure context-distillation KL (zero reward)
     # reward_only: GRPO-style accuracy reward (no teacher)
     # reward_and_kl: accuracy reward + teacher KL
@@ -529,8 +516,6 @@ class Config:
     wandb_project: str | None = None
     wandb_name: str | None = None
 
-    gold_labels_path: str | None = None
-    train_labels_path: str | None = None
     max_eval_samples: int = 200
 
 
@@ -593,58 +578,28 @@ async def main(cfg: Config):
     )
     renderer = renderers.get_renderer(renderer_name, tokenizer=tokenizer)
 
-    # Base-model sampling client (used for teacher KL and/or label generation)
+    # Base-model sampling client (teacher KL)
     base_client = service_client.create_sampling_client(base_model=cfg.model_name)
 
-    # Load data
-    sentences = load_multilingual_sentences()
-    train_texts, test_texts = split_train_test(sentences)
-    logger.info("Data: %d train, %d test sentences", len(train_texts), len(test_texts))
+    # Load data from {train,test}_set.jsonl
+    train_path = os.path.join(cfg.dataset_dir, "train_set.jsonl")
+    test_path = os.path.join(cfg.dataset_dir, "test_set.jsonl")
+    train_texts, train_labels = load_dataset_jsonl(train_path)
+    test_texts, test_labels = load_dataset_jsonl(test_path)
+    logger.info("Data: %d train, %d test from %s", len(train_texts), len(test_texts), cfg.dataset_dir)
 
-    # Gold labels for evaluation
-    if cfg.gold_labels_path and os.path.exists(cfg.gold_labels_path):
-        with open(cfg.gold_labels_path) as f:
-            gold_labels = json.load(f)
-        logger.info("Loaded %d gold labels from %s", len(gold_labels), cfg.gold_labels_path)
-    else:
-        logger.info("Generating gold labels for %d test sentences...", len(test_texts))
-        gold_labels = await generate_gold_labels(test_texts, base_client, renderer, tokenizer)
-        os.makedirs(cfg.log_path, exist_ok=True)
-        label_path = os.path.join(cfg.log_path, "gold_labels.json")
-        with open(label_path, "w") as f:
-            json.dump(gold_labels, f)
-        logger.info("Saved gold labels to %s", label_path)
-
-    # Training labels (only for reward-based modes)
-    train_labels: list[str] | None = None
-    if use_reward:
-        if cfg.train_labels_path and os.path.exists(cfg.train_labels_path):
-            with open(cfg.train_labels_path) as f:
-                train_labels = json.load(f)
-            logger.info("Loaded %d train labels from %s", len(train_labels), cfg.train_labels_path)
-        else:
-            logger.info("Generating train labels for %d sentences...", len(train_texts))
-            train_labels = await generate_gold_labels(
-                train_texts, base_client, renderer, tokenizer
-            )
-            os.makedirs(cfg.log_path, exist_ok=True)
-            tl_path = os.path.join(cfg.log_path, "train_labels.json")
-            with open(tl_path, "w") as f:
-                json.dump(train_labels, f)
-            logger.info("Saved train labels to %s", tl_path)
-
-    # Dataset and evaluator
+    # Dataset: pass labels only for reward-based modes
     dataset = ContextDistillationDataset(
         texts=train_texts,
         groups_per_batch=cfg.groups_per_batch,
         group_size=cfg.group_size,
         renderer=renderer,
         student_prompt_template=STUDENT_PROMPT,
-        train_labels=train_labels,
+        train_labels=train_labels if use_reward else None,
     )
     evaluator = LangClassificationEvaluator(
         test_texts=test_texts,
-        gold_labels=gold_labels,
+        gold_labels=test_labels,
         student_prompt_template=STUDENT_PROMPT,
         renderer=renderer,
         tokenizer=tokenizer,
@@ -802,6 +757,9 @@ class CLIConfig:
     # Algorithm: kl_only | reward_only | reward_and_kl
     mode: str = "kl_only"
 
+    # Directory with train_set.jsonl and test_set.jsonl
+    dataset_dir: str = "data/context_distillation"
+
     model_name: str = "Qwen/Qwen3-30B-A3B"
     log_path: str | None = None
     load_checkpoint_path: str | None = None
@@ -825,8 +783,6 @@ class CLIConfig:
     wandb_project: str | None = None
     wandb_name: str | None = None
 
-    gold_labels_path: str | None = None
-    train_labels_path: str | None = None
     max_eval_samples: int = 200
 
     behavior_if_log_dir_exists: cli_utils.LogdirBehavior = "ask"
@@ -856,6 +812,7 @@ async def cli_main(cli_config: CLIConfig):
 
     config = Config(
         mode=cli_config.mode,
+        dataset_dir=cli_config.dataset_dir,
         model_name=cli_config.model_name,
         log_path=log_path,
         renderer_name=renderer_name,
@@ -874,8 +831,6 @@ async def cli_main(cli_config: CLIConfig):
         base_url=cli_config.base_url,
         wandb_project=cli_config.wandb_project,
         wandb_name=wandb_name,
-        gold_labels_path=cli_config.gold_labels_path,
-        train_labels_path=cli_config.train_labels_path,
         max_eval_samples=cli_config.max_eval_samples,
     )
 

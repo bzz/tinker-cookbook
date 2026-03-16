@@ -23,9 +23,8 @@ from tinker_cookbook.recipes.prompt_distillation.train_on_policy import (
     STUDENT_PROMPT,
     TEACHER_PROMPT,
     VALID_LABELS,
-    load_multilingual_sentences,
+    load_dataset_jsonl,
     parse_label,
-    split_train_test,
 )
 from tinker_cookbook.tokenizer_utils import get_tokenizer
 
@@ -34,8 +33,7 @@ logger = logging.getLogger(__name__)
 
 MODEL = "Qwen/Qwen3-30B-A3B"
 RENDERER_NAME = "qwen3_disable_thinking"
-GOLD_LABELS_PATH = "data/context_distillation/gold_labels.json"
-TRAIN_LABELS_PATH = "data/context_distillation/train_labels.json"
+DATASET_DIR = "data/context_distillation"
 OUTPUT_DIR = "data/context_distillation/analysis"
 
 
@@ -46,13 +44,8 @@ async def main():
     service = tinker.ServiceClient()
     base_client = service.create_sampling_client(base_model=MODEL)
 
-    sentences = load_multilingual_sentences()
-    train_texts, test_texts = split_train_test(sentences)
-
-    with open(GOLD_LABELS_PATH) as f:
-        gold_labels: list[str] = json.load(f)
-    with open(TRAIN_LABELS_PATH) as f:
-        train_labels: list[str] = json.load(f)
+    train_texts, train_labels = load_dataset_jsonl(os.path.join(DATASET_DIR, "train_set.jsonl"))
+    test_texts, gold_labels = load_dataset_jsonl(os.path.join(DATASET_DIR, "test_set.jsonl"))
 
     # Use a representative subset for analysis
     N = min(100, len(test_texts))

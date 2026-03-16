@@ -70,81 +70,36 @@ python -m tinker_cookbook.recipes.prompt_distillation.evaluate \
     --checkpoint_path tinker://... --prompt student
 ```
 
-### Step 2: Generate off-policy training data (for SL experiments)
-
-```bash
-python -m tinker_cookbook.recipes.prompt_distillation.create_data_context \
-    output_file=data/context_distillation/off_policy_data.jsonl \
-    gold_labels_file=data/context_distillation/gold_labels.json
-```
-
-### Step 3: Extract labels for reward-based training
-
-The training script needs parallel JSON arrays of labels.  Extract them from
-the JSONL dataset:
-
-```bash
-python3 -c "
-import json
-for split in ('train', 'test'):
-    with open(f'data/context_distillation/{split}_set.jsonl') as f:
-        labels = [json.loads(l)['label'] for l in f]
-    with open(f'data/context_distillation/{split}_labels.json', 'w') as f:
-        json.dump(labels, f)
-    print(f'{split}: {len(labels)} labels')
-"
-```
-
-### Step 4: Run training experiments
+### Step 2: Run training experiments
 
 All hyperparameters are set via CLI for reproducibility.
 
-```bash
-# --- Experiment 1: Off-policy SL ---
-python -m tinker_cookbook.recipes.prompt_distillation.train \
-    file_path=data/context_distillation/off_policy_data.jsonl \
-    model_name=Qwen/Qwen3-30B-A3B renderer_name=qwen3_disable_thinking \
-    log_path=data/context_distillation/logs/exp1_off_policy \
-    learning_rate=1e-4 lora_rank=32 batch_size=128 num_epochs=4 \
-    save_every=10 eval_every=5 max_steps=30
+All experiments read from `dataset_dir=data/context_distillation` by default.
 
-# --- Experiment 2: KL-only context distillation ---
+```bash
+# --- KL-only context distillation ---
 python -m tinker_cookbook.recipes.prompt_distillation.train_on_policy \
     mode=kl_only \
     log_path=data/context_distillation/logs/exp2_kl_only \
-    gold_labels_path=data/context_distillation/test_labels.json \
     learning_rate=1e-4 lora_rank=32 groups_per_batch=32 group_size=4 \
     max_tokens=50 temperature=1.0 kl_penalty_coef=1.0 max_steps=30
 
-# --- Experiment 3: Off-policy → KL combo ---
-python -m tinker_cookbook.recipes.prompt_distillation.train_on_policy \
-    mode=kl_only \
-    load_checkpoint_path=<exp1_checkpoint> \
-    log_path=data/context_distillation/logs/exp3_combo \
-    gold_labels_path=data/context_distillation/test_labels.json \
-    learning_rate=5e-5 lora_rank=32 groups_per_batch=32 group_size=4 \
-    max_tokens=50 temperature=1.0 kl_penalty_coef=1.0 max_steps=20
-
-# --- Experiment 4: GRPO reward only ---
+# --- GRPO reward only ---
 python -m tinker_cookbook.recipes.prompt_distillation.train_on_policy \
     mode=reward_only \
     log_path=data/context_distillation/logs/exp4_reward_only \
-    gold_labels_path=data/context_distillation/test_labels.json \
-    train_labels_path=data/context_distillation/train_labels.json \
     learning_rate=1e-4 lora_rank=32 groups_per_batch=32 group_size=8 \
     max_tokens=50 temperature=1.0 kl_penalty_coef=0 max_steps=30
 
-# --- Experiment 5: Reward + KL combined ---
+# --- Reward + KL combined ---
 python -m tinker_cookbook.recipes.prompt_distillation.train_on_policy \
     mode=reward_and_kl \
     log_path=data/context_distillation/logs/exp5_reward_and_kl \
-    gold_labels_path=data/context_distillation/test_labels.json \
-    train_labels_path=data/context_distillation/train_labels.json \
     learning_rate=1e-4 lora_rank=32 groups_per_batch=32 group_size=8 \
     max_tokens=50 temperature=1.0 kl_penalty_coef=1.0 max_steps=30
 ```
 
-### Step 5: Evaluate trained checkpoints
+### Step 3: Evaluate trained checkpoints
 
 ```bash
 python -m tinker_cookbook.recipes.prompt_distillation.evaluate \
@@ -152,7 +107,7 @@ python -m tinker_cookbook.recipes.prompt_distillation.evaluate \
     --checkpoint_path <checkpoint_path> --prompt student
 ```
 
-### Step 6: Inspect model behavior
+### Step 4: Inspect model behavior
 
 Use `play_w_env.py` to investigate token-level KL, group filtering, error
 patterns, and advantage magnitudes:
@@ -167,11 +122,9 @@ python -m tinker_cookbook.recipes.prompt_distillation.play_w_env
 
 | File | Purpose |
 |---|---|
-| `create_labeled_dataset.py` | Ground-truth labels via OpenAI or Tinker (two-step) |
-| `create_data_context.py` | Off-policy training data (teacher labels for SL) |
-| `evaluate.py` | Evaluate any model+prompt on the JSONL test set |
-| `train.py` | Off-policy SL training |
-| `train_on_policy.py` | On-policy training (kl_only / reward_only / reward_and_kl) |
+| `create_labeled_dataset.py` | Ground-truth labels via OpenAI or Tinker (two-step) → `{train,test}_set.jsonl` |
+| `evaluate.py` | Evaluate any model+prompt on `test_set.jsonl` (`--limit N`, `--prompt`, `--checkpoint_path`) |
+| `train_on_policy.py` | Training: kl_only / reward_only / reward_and_kl (reads from `dataset_dir`) |
 | `play_w_env.py` | Analysis: token-level KL, errors, group filtering |
 | `WRITEUP.md` | Experiment results and discussion |
 

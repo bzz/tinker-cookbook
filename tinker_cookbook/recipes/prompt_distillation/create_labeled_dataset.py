@@ -34,11 +34,23 @@ import os
 import re
 from collections import Counter
 
-from tinker_cookbook.recipes.prompt_distillation.train_on_policy import (
-    VALID_LABELS,
-    load_multilingual_sentences,
-    split_train_test,
-)
+from tinker_cookbook.recipes.prompt_distillation.train_on_policy import VALID_LABELS
+
+_DATA_PATH = os.path.join(os.path.dirname(__file__), "..", "..", "example_data", "multilingual.txt")
+
+
+def _load_multilingual_sentences(path: str = _DATA_PATH) -> list[str]:
+    with open(path) as f:
+        return [line.strip() for line in f if line.strip()]
+
+
+def _split_train_test(
+    sentences: list[str], test_fraction: float = 0.2, group_size: int = 15
+) -> tuple[list[str], list[str]]:
+    n_groups = len(sentences) // group_size
+    n_test = max(1, int(n_groups * test_fraction))
+    n_train = n_groups - n_test
+    return sentences[: n_train * group_size], sentences[n_train * group_size : n_groups * group_size]
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(message)s")
 logger = logging.getLogger(__name__)
@@ -138,8 +150,8 @@ async def main():
     if args.model is None:
         args.model = "gpt-4o-mini" if args.backend == "openai" else "Qwen/Qwen3-30B-A3B"
 
-    sentences = load_multilingual_sentences()
-    train_texts, test_texts = split_train_test(sentences)
+    sentences = _load_multilingual_sentences()
+    train_texts, test_texts = _split_train_test(sentences)
     if args.limit:
         train_texts = train_texts[: args.limit]
         test_texts = test_texts[: args.limit]
