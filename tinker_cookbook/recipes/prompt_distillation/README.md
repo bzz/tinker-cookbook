@@ -62,6 +62,23 @@ The training script will:
 
 Once training is complete, you can test your distilled model by sampling from the trained model to verify its performance on language classification tasks.
 
+## On-Policy Context Distillation
+
+In addition to the off-policy approach above, this recipe includes an **on-policy context distillation** variant ([`train_on_policy.py`](train_on_policy.py)) where the student generates samples on-policy and is trained via KL divergence against the teacher:
+
+- The teacher sees the **full detailed prompt** (task + instructions + output format)
+- The student sees only a **short prompt** (task + output format)
+- KL penalty drives the student to match the teacher's token-level distribution
+
+```bash
+python -m tinker_cookbook.recipes.prompt_distillation.train_on_policy \
+    model_name=Qwen/Qwen3-30B-A3B \
+    renderer_name=qwen3_disable_thinking \
+    groups_per_batch=32 group_size=4 max_steps=30
+```
+
+See [`WRITEUP.md`](WRITEUP.md) for a comparison of off-policy, on-policy, and combined approaches.
+
 ## Advanced Configuration
 
 The prompt distillation recipe can be customized for different scenarios:
@@ -70,6 +87,7 @@ The prompt distillation recipe can be customized for different scenarios:
 - **Sampling strategies**: Adjust temperature and other generation parameters
 - **Data volume**: Scale the number of generated examples based on your needs
 - **Training hyperparameters**: Fine-tune learning rates and other training settings
+- **On-policy vs off-policy**: Compare approaches using `train_on_policy.py` (on-policy) vs `train.py` (off-policy)
 
 [1] Askell, A., Bai, Y., Chen, A., Drain, D., Ganguli, D., Henighan, T., Jones, A., Joseph, N., Mann, B., DasSarma, N., Elhage, N., Hatfield-Dodds, Z., Hernandez, D., Kernion, J., Ndousse, K., Olsson, C., Amodei, D., Brown, T., Clark, J., McCandlish, S., Olah, C., & Kaplan, J. (2021). A general language assistant as a laboratory for alignment. arXiv preprint arXiv:2112.00861.
 
