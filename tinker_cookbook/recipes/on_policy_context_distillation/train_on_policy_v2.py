@@ -300,38 +300,29 @@ class CLIConfig:
     behavior_if_log_dir_exists: cli_utils.LogdirBehavior = "ask"
 
 
-def render_teacher_only_context(renderer_name: str, model_name: str) -> list[int]:
-    """Render the teacher-only instructions into tokens.
+def render_teacher_context(renderer_name: str, model_name: str) -> list[int]:
+    """Render the full teacher context (task def + instructions + output format) into tokens.
 
-    The teacher's full context is: STUDENT_CONTEXT + TEACHER_ONLY_INSTRUCTIONS.
-    The student already sees STUDENT_CONTEXT as a system message in its convo_prefix.
-    So the teacher-only tokens we need to prepend are just the TEACHER_ONLY_INSTRUCTIONS
-    rendered as an additional system message BEFORE the student's system message.
+    The teacher sees the FULL original classification prompt as a system message.
+    This gets prepended to the student's token sequence via ContextAwareSamplingClient.
 
-    Actually, we need to be careful about how the renderer handles this. The cleanest
-    approach: render the FULL teacher context as a system message, then compute the
-    offset = (full teacher tokens) - (student system message tokens). But this gets
-    complicated with renderer specifics.
-
-    Simpler approach: render a system message with the FULL teacher context. The
-    ContextAwareSamplingClient will prepend these tokens before the student's tokens.
-    Since the student's tokens already start with the student system message, the
-    teacher effectively sees: [teacher_instructions_system_msg] [student_system_msg] [user_msg] [assistant].
-    This means the teacher sees redundant task definition, but that's fine — it won't
-    hurt and keeps the implementation clean.
+    The student's tokens already contain STUDENT_CONTEXT (task def + output format)
+    as a system message, so the teacher effectively sees the full prompt (with some
+    redundancy in task def/output format). This redundancy is harmless and keeps
+    the implementation simple — the teacher always has full context.
     """
     tokenizer = get_tokenizer(model_name)
     renderer = renderers.get_renderer(renderer_name, tokenizer)
 
-    # Render just the teacher-only instructions as a system message
+    # Teacher sees the FULL original prompt (task def + instructions + output format)
     context_messages: list[renderers.Message] = [
-        {"role": "system", "content": TEACHER_ONLY_INSTRUCTIONS.strip()},
+        {"role": "system", "content": TEACHER_FULL_CONTEXT},
     ]
     context_input = renderer.build_generation_prompt(context_messages)
     context_tokens = context_input.to_ints()
 
-    logger.info(f"Teacher-only context rendered to {len(context_tokens)} tokens")
-    logger.info(f"Student context (STUDENT_CONTEXT) is provided via convo_prefix system message")
+    logger.info(f"Teacher full context rendered to {len(context_tokens)} tokens")
+    logger.info(f"Student sees STUDENT_CONTEXT (task def + output format) via convo_prefix")
     return context_tokens
 
 
@@ -361,16 +352,16 @@ async def main_async(cli_config: CLIConfig):
 
     cli_utils.check_log_dir(log_path, behavior_if_exists=cli_config.behavior_if_log_dir_exists)
 
-    # Render teacher-only context tokens
-    teacher_context_tokens = render_teacher_only_context(renderer_name, cli_config.model_name)
+    # Render full teacher context tokens (task def + instructions + output format)
+    teacher_context_tokens = render_teacher_context(renderer_name, cli_config.model_name)
 
     # Log token counts for cost tracking
     tokenizer_for_counting = get_tokenizer(cli_config.model_name)
     student_ctx_tokens = len(tokenizer_for_counting.encode(STUDENT_CONTEXT))
-    teacher_only_tokens = len(teacher_context_tokens)
+    teacher_ctx_tokens = len(teacher_context_tokens)
     logger.info(f"=== Token counts for cost estimation ===")
     logger.info(f"Student context tokens (per sample): {student_ctx_tokens}")
-    logger.info(f"Teacher-only context tokens (per teacher logprob call): {teacher_only_tokens}")
+    logger.info(f"Teacher full context tokens (per teacher logprob call): {teacher_ctx_tokens}")
     logger.info(
         f"Per-step sampling tokens (approx): "
         f"{cli_config.groups_per_batch} groups × {cli_config.group_size} rollouts × "
@@ -380,8 +371,8 @@ async def main_async(cli_config: CLIConfig):
     logger.info(
         f"Per-step teacher logprob tokens (approx): "
         f"{cli_config.groups_per_batch * cli_config.group_size} sequences × "
-        f"({teacher_only_tokens} teacher ctx + {student_ctx_tokens} student ctx + {cli_config.max_tokens} gen) = "
-        f"{cli_config.groups_per_batch * cli_config.group_size * (teacher_only_tokens + student_ctx_tokens + cli_config.max_tokens)}"
+        f"({teacher_ctx_tokens} teacher ctx + {student_ctx_tokens} student ctx + {cli_config.max_tokens} gen) = "
+        f"{cli_config.groups_per_batch * cli_config.group_size * (teacher_ctx_tokens + student_ctx_tokens + cli_config.max_tokens)}"
     )
 
     # Build config
@@ -484,12 +475,12 @@ async def main_async(cli_config: CLIConfig):
                 base_model=tc.base_model, model_path=tc.load_checkpoint_path
             )
 
-        # Wrap teacher with context-aware client (teacher-only instructions)
+        # Wrap teacher with context-aware client (full prompt: task def + instructions + output format)
         wrapped_teacher = ContextAwareSamplingClient(teacher_client, teacher_context_tokens)
         teacher_clients.append(wrapped_teacher)
         logger.info(
             f"Created context-aware teacher for {tc.base_model} "
-            f"(teacher-only context: {len(teacher_context_tokens)} tokens, "
+            f"(full context: {len(teacher_context_tokens)} tokens, "
             f"checkpoint: {tc.load_checkpoint_path})"
         )
 
