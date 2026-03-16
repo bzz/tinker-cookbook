@@ -181,9 +181,10 @@ async def generate_gold_labels(
 
     async def label_one(text: str) -> str:
         prompt = TEACHER_PROMPT.format(text=text)
-        model_input = tinker.ModelInput.from_ints(tokenizer.encode(prompt))
+        convo: list[renderers.Message] = [{"role": "user", "content": prompt}]
+        prompt_input = renderer.build_generation_prompt(convo)
         result = await sampling_client.sample_async(
-            prompt=model_input, sampling_params=params, num_samples=1
+            prompt=prompt_input, sampling_params=params, num_samples=1
         )
         response = tokenizer.decode(result.sequences[0].tokens)
         label = parse_label(response)
@@ -724,7 +725,7 @@ class CLIConfig:
     model_name: str = "Qwen/Qwen3-30B-A3B"
     log_path: str | None = None
     load_checkpoint_path: str | None = None
-    renderer_name: str | None = None
+    renderer_name: str | None = "qwen3_disable_thinking"
 
     learning_rate: float = 1e-4
     lora_rank: int = 32

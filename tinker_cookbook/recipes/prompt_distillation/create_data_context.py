@@ -41,7 +41,7 @@ class Config:
     output_file: str
     gold_labels_file: str | None = None
     model_name: str = "Qwen/Qwen3-30B-A3B"
-    renderer_name: str = "qwen3"
+    renderer_name: str = "qwen3_disable_thinking"
 
 
 def setup_clients(model_name: str, renderer_name: str):
@@ -69,9 +69,10 @@ async def create_data_async(
 
     async def sample_label(text: str) -> tuple[str, str | None]:
         prompt = TEACHER_PROMPT.format(text=text)
-        tokenized = tinker.ModelInput.from_ints(tokenizer.encode(prompt))
+        convo: list[renderers.Message] = [{"role": "user", "content": prompt}]
+        model_input = renderer.build_generation_prompt(convo)
         result = await sampling_client.sample_async(
-            prompt=tokenized, sampling_params=params, num_samples=1
+            prompt=model_input, sampling_params=params, num_samples=1
         )
         response = tokenizer.decode(result.sequences[0].tokens)
         label = parse_label(response)
