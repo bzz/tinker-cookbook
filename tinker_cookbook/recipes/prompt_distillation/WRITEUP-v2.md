@@ -105,6 +105,18 @@ Same result as v1: the KL penalty dominates because it keeps all groups
 | **Labels + on-policy exploration needed** | GRPO | Strong, but needs diverse groups |
 | **Teacher better than student by design** | KL distillation | Teacher must actually differ from student |
 
+## Tinker run IDs
+
+Checkpoints follow the format `tinker://<run-id>:train:0/weights/final`.
+
+| Experiment | Run ID |
+|---|---|
+| exp1_off_policy_sl | `66027d07-45ad-501c-844f-121a4755c523` |
+| exp2_kl_only | `3825da85-fc7f-50ff-abf2-67384589b51a` |
+| exp3_sl_then_kl | `30e31c47-39a5-59b7-9e19-3a4ae7b1b513` |
+| exp4_reward_only | `551d14cd-7d13-51fa-ab32-861aeddbdd91` |
+| exp5_reward_and_kl | `11762634-fc6a-5750-adbc-154e5a5e15ca` |
+
 ## Reproduction
 
 ```bash
