@@ -105,6 +105,47 @@ Same result as v1: the KL penalty dominates because it keeps all groups
 | **Labels + on-policy exploration needed** | GRPO | Strong, but needs diverse groups |
 | **Teacher better than student by design** | KL distillation | Teacher must actually differ from student |
 
+## Thinking-mode experiments (Exp 6–7)
+
+Using `renderer_name=qwen3` (thinking enabled), completions grow from 5 to
+200–500 tokens as the model generates `<think>...</think>` before the answer.
+
+| # | Method | Renderer | Step 0 | Best | Final | Parse |
+|---|---|---|---|---|---|---|
+| 6 | GRPO reward | qwen3 (thinking) | 84.0% | **92.0%** | **91.5%** | 92.5% |
+| 7 | KL-only | qwen3 (thinking) | 86.5% | 86.5% | 23.5% | 28.5% |
+
+### Exp 6: GRPO with thinking
+
+Thinking gives the base model a head start (84% vs 78.5% without thinking).
+GRPO pushes it to 92% by step 10 with more groups surviving filtering
+(12/32 at step 0 vs 2/32 without thinking) — the longer completions introduce
+more variability, giving GRPO more gradient signal.
+
+Parse rate never reaches 100% (caps at ~93%) because some thinking chains
+consume too many of the 512 max tokens before reaching `Final Answer:`.
+
+### Exp 7: KL with thinking — catastrophic collapse
+
+KL distillation **collapses to 23.5%** with thinking enabled.  The initial
+teacher KL is 0.57 — ~10x higher than without thinking (0.05).  This reflects
+the massive divergence in the thinking tokens: both student and teacher generate
+long reasoning chains, but the token-level distributions differ substantially
+at every position.  Minimizing this KL distorts the model's reasoning and
+output format, ultimately destroying its classification ability.
+
+### Why thinking hurts KL but helps GRPO
+
+- **KL**: The 200–500 thinking tokens dominate the loss.  Matching the teacher's
+  reasoning chain token-by-token is a much harder objective than matching just
+  the 5-token `Final Answer: xx`.  The model contorts itself to match thinking
+  tokens at the expense of producing a correct final answer.
+
+- **GRPO**: The reward is still binary (correct label or not).  The model is free
+  to develop whatever reasoning chain it wants as long as the final answer is right.
+  Thinking helps because it allows the model to "reason" about ambiguous cases
+  (e.g., Bulgarian vs Russian, Swahili → ot).
+
 ## Tinker run IDs
 
 Checkpoints follow the format `tinker://<run-id>:train:0/weights/final`.
@@ -116,6 +157,8 @@ Checkpoints follow the format `tinker://<run-id>:train:0/weights/final`.
 | exp3_sl_then_kl | `30e31c47-39a5-59b7-9e19-3a4ae7b1b513` |
 | exp4_reward_only | `551d14cd-7d13-51fa-ab32-861aeddbdd91` |
 | exp5_reward_and_kl | `11762634-fc6a-5750-adbc-154e5a5e15ca` |
+| exp6_reward_thinking | `dfd9adab-4570-5029-a9fb-2eb34635f370` |
+| exp7_kl_thinking | `32533227-aa58-5084-ba2d-035394fd525f` |
 
 ## Reproduction
 
