@@ -306,16 +306,18 @@ class LangClassificationEvaluator(SamplingClientEvaluator):
         renderer: renderers.Renderer,
         tokenizer: Tokenizer,
         max_eval_samples: int = 200,
+        max_eval_tokens: int = 50,
     ):
         self.test_texts = test_texts[:max_eval_samples]
         self.gold_labels = gold_labels[:max_eval_samples]
         self.student_prompt_template = student_prompt_template
         self.renderer = renderer
         self.tokenizer = tokenizer
+        self.max_eval_tokens = max_eval_tokens
 
     async def __call__(self, sampling_client: tinker.SamplingClient) -> dict[str, float]:
         params = tinker.SamplingParams(
-            max_tokens=50, temperature=0.0, stop=self.renderer.get_stop_sequences()
+            max_tokens=self.max_eval_tokens, temperature=0.0, stop=self.renderer.get_stop_sequences()
         )
 
         async def eval_one(text: str) -> str | None:
@@ -517,6 +519,7 @@ class Config:
     wandb_name: str | None = None
 
     max_eval_samples: int = 200
+    max_eval_tokens: int = 50
 
 
 async def main(cfg: Config):
@@ -604,6 +607,7 @@ async def main(cfg: Config):
         renderer=renderer,
         tokenizer=tokenizer,
         max_eval_samples=cfg.max_eval_samples,
+        max_eval_tokens=cfg.max_eval_tokens,
     )
 
     num_batches = len(dataset)
@@ -784,6 +788,7 @@ class CLIConfig:
     wandb_name: str | None = None
 
     max_eval_samples: int = 200
+    max_eval_tokens: int = 50
 
     behavior_if_log_dir_exists: cli_utils.LogdirBehavior = "ask"
 
@@ -832,6 +837,7 @@ async def cli_main(cli_config: CLIConfig):
         wandb_project=cli_config.wandb_project,
         wandb_name=wandb_name,
         max_eval_samples=cli_config.max_eval_samples,
+        max_eval_tokens=cli_config.max_eval_tokens,
     )
 
     await main(config)
