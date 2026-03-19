@@ -7,23 +7,23 @@ per-label metrics.
 
 Usage:
     # Evaluate base model with the student prompt
-    python -m tinker_cookbook.recipes.prompt_distillation.evaluate \
+    python -m tinker_cookbook.recipes.context_distillation.evaluate \
         --dataset data/context_distillation/test_set.jsonl \
         --prompt student
 
     # Evaluate a trained checkpoint
-    python -m tinker_cookbook.recipes.prompt_distillation.evaluate \
+    python -m tinker_cookbook.recipes.context_distillation.evaluate \
         --dataset data/context_distillation/test_set.jsonl \
         --checkpoint_path tinker://... \
         --prompt student --limit 100
 
     # Evaluate with the teacher (full) prompt
-    python -m tinker_cookbook.recipes.prompt_distillation.evaluate \
+    python -m tinker_cookbook.recipes.context_distillation.evaluate \
         --dataset data/context_distillation/test_set.jsonl \
         --prompt teacher
 
     # Evaluate with a custom prompt (must contain {text})
-    python -m tinker_cookbook.recipes.prompt_distillation.evaluate \
+    python -m tinker_cookbook.recipes.context_distillation.evaluate \
         --dataset data/context_distillation/test_set.jsonl \
         --prompt "Detect the language: {text}\\nAnswer with Final Answer: xx"
 """
@@ -37,7 +37,7 @@ from collections import Counter, defaultdict
 import tinker
 
 from tinker_cookbook import renderers
-from tinker_cookbook.recipes.prompt_distillation.train_on_policy import (
+from tinker_cookbook.recipes.context_distillation.train_on_policy import (
     STUDENT_PROMPT,
     TEACHER_PROMPT,
     VALID_LABELS,

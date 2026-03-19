@@ -55,8 +55,9 @@ We also include a wide range of more sophisticated examples in the [`tinker_cook
 2. **[Math reasoning](tinker_cookbook/recipes/math_rl/)**: improve LLM reasoning capability by rewarding it for answering math questions correctly.
 3. **[Preference learning](tinker_cookbook/recipes/preference/)**: showcase a three-stage RLHF pipeline: 1) supervised fine-tuning, 2) learning a reward model, 3) RL against the reward model.
 4. **[Tool use](tinker_cookbook/recipes/search_tool/)**: train LLMs to better use retrieval tools to answer questions more accurately.
-5. **[Prompt distillation](tinker_cookbook/recipes/prompt_distillation/)**: internalize long and complex instructions into LLMs.
-6. **[Multi-Agent](tinker_cookbook/recipes/multiplayer_rl/)**: optimize LLMs to play against another LLM or themselves.
+5. **[Prompt distillation](tinker_cookbook/recipes/prompt_distillation/)**: supervised recipe—teacher JSONL plus student `train.py`.
+6. **[Context distillation](tinker_cookbook/recipes/context_distillation/)**: language-ID benchmark with on-policy KL / GRPO (`train_on_policy`, etc.).
+7. **[Multi-Agent](tinker_cookbook/recipes/multiplayer_rl/)**: optimize LLMs to play against another LLM or themselves.
 
 These examples are located in each subfolder, and their `README.md` files will walk you through the key implementation details, the commands to run them, and the expected performance.
 

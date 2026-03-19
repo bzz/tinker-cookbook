@@ -5,7 +5,7 @@ Probes several hypotheses about why GRPO (reward_only) dominates KL-only
 distillation on the language classification task.
 
 Usage:
-    python -m tinker_cookbook.recipes.prompt_distillation.play_w_env
+    python -m tinker_cookbook.recipes.context_distillation.play_w_env
 """
 
 import asyncio
@@ -19,7 +19,7 @@ import tinker
 import torch
 
 from tinker_cookbook import renderers
-from tinker_cookbook.recipes.prompt_distillation.train_on_policy import (
+from tinker_cookbook.recipes.context_distillation.train_on_policy import (
     STUDENT_PROMPT,
     TEACHER_PROMPT,
     VALID_LABELS,

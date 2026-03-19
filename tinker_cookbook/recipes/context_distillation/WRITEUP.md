@@ -143,9 +143,8 @@ The combined mode keeps all groups (since KL provides signal even with uniform r
 ### Generate off-policy data
 
 ```bash
-python -m tinker_cookbook.recipes.prompt_distillation.create_data_context \
-    output_file=data/context_distillation/off_policy_data.jsonl \
-    gold_labels_file=data/context_distillation/gold_labels.json
+python -m tinker_cookbook.recipes.prompt_distillation.create_data \
+    output_file=data/context_distillation/off_policy_data.jsonl
 ```
 
 ### Experiment 1: Off-policy SL
@@ -162,7 +161,7 @@ python -m tinker_cookbook.recipes.prompt_distillation.train \
 ### Experiment 2: On-policy KL
 
 ```bash
-python -m tinker_cookbook.recipes.prompt_distillation.train_on_policy \
+python -m tinker_cookbook.recipes.context_distillation.train_on_policy \
     model_name=Qwen/Qwen3-30B-A3B \
     renderer_name=qwen3_disable_thinking \
     log_path=data/context_distillation/logs/exp2_on_policy \
@@ -173,7 +172,7 @@ python -m tinker_cookbook.recipes.prompt_distillation.train_on_policy \
 ### Experiment 3: Off-policy → on-policy
 
 ```bash
-python -m tinker_cookbook.recipes.prompt_distillation.train_on_policy \
+python -m tinker_cookbook.recipes.context_distillation.train_on_policy \
     mode=kl_only \
     load_checkpoint_path=<checkpoint_from_exp1> \
     log_path=data/context_distillation/logs/exp3_combo \
@@ -184,7 +183,7 @@ python -m tinker_cookbook.recipes.prompt_distillation.train_on_policy \
 ### Experiment 4: GRPO reward only
 
 ```bash
-python -m tinker_cookbook.recipes.prompt_distillation.train_on_policy \
+python -m tinker_cookbook.recipes.context_distillation.train_on_policy \
     mode=reward_only \
     log_path=data/context_distillation/logs/exp4_reward_only \
     gold_labels_path=data/context_distillation/gold_labels.json \
@@ -196,7 +195,7 @@ python -m tinker_cookbook.recipes.prompt_distillation.train_on_policy \
 ### Experiment 5: Combined reward + KL
 
 ```bash
-python -m tinker_cookbook.recipes.prompt_distillation.train_on_policy \
+python -m tinker_cookbook.recipes.context_distillation.train_on_policy \
     mode=reward_and_kl \
     log_path=data/context_distillation/logs/exp5_reward_and_kl \
     gold_labels_path=data/context_distillation/gold_labels.json \

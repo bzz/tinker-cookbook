@@ -12,24 +12,19 @@ All modes read from a ``dataset_dir`` containing ``train_set.jsonl`` and
 
 Examples:
     # KL-only context distillation
-    python -m tinker_cookbook.recipes.prompt_distillation.train_on_policy \
+    python -m tinker_cookbook.recipes.context_distillation.train_on_policy \
         mode=kl_only dataset_dir=data/context_distillation \
         groups_per_batch=32 group_size=4 max_steps=30
 
     # GRPO-style reward only
-    python -m tinker_cookbook.recipes.prompt_distillation.train_on_policy \
+    python -m tinker_cookbook.recipes.context_distillation.train_on_policy \
         mode=reward_only dataset_dir=data/context_distillation \
         groups_per_batch=32 group_size=8 temperature=1.0 kl_penalty_coef=0 max_steps=30
 
     # Combined reward + KL
-    python -m tinker_cookbook.recipes.prompt_distillation.train_on_policy \
+    python -m tinker_cookbook.recipes.context_distillation.train_on_policy \
         mode=reward_and_kl dataset_dir=data/context_distillation \
         groups_per_batch=32 group_size=8 temperature=1.0 kl_penalty_coef=1.0 max_steps=30
-
-    # Off-policy SL (uses the same dataset)
-    python -m tinker_cookbook.recipes.prompt_distillation.train_on_policy \
-        mode=off_policy_sl dataset_dir=data/context_distillation \
-        learning_rate=1e-4 batch_size=128 num_epochs=4 max_steps=30
 """
 
 import asyncio
@@ -810,7 +805,7 @@ async def cli_main(cli_config: CLIConfig):
         f"t{cli_config.temperature}-kl{cli_config.kl_penalty_coef}-{date_str}"
     )
 
-    log_path = cli_config.log_path or f"/tmp/tinker-examples/prompt_distillation/{run_name}"
+    log_path = cli_config.log_path or f"/tmp/tinker-examples/context_distillation/{run_name}"
     wandb_name = cli_config.wandb_name or run_name
 
     cli_utils.check_log_dir(log_path, behavior_if_exists=cli_config.behavior_if_log_dir_exists)

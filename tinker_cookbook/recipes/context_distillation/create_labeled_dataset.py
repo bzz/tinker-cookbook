@@ -14,15 +14,15 @@ Produces two JSONL files (one per split).  Each line:
 
 Usage:
     # OpenAI (preferred for independent ground truth)
-    python -m tinker_cookbook.recipes.prompt_distillation.create_labeled_dataset \
+    python -m tinker_cookbook.recipes.context_distillation.create_labeled_dataset \
         --output_dir data/context_distillation --backend openai --model gpt-4o-mini
 
     # Tinker fallback (uses same model family but reliable two-step method)
-    python -m tinker_cookbook.recipes.prompt_distillation.create_labeled_dataset \
+    python -m tinker_cookbook.recipes.context_distillation.create_labeled_dataset \
         --output_dir data/context_distillation --backend tinker
 
     # Quick test on a small subset
-    python -m tinker_cookbook.recipes.prompt_distillation.create_labeled_dataset \
+    python -m tinker_cookbook.recipes.context_distillation.create_labeled_dataset \
         --output_dir data/context_distillation --backend tinker --limit 30
 """
 
@@ -34,7 +34,7 @@ import os
 import re
 from collections import Counter
 
-from tinker_cookbook.recipes.prompt_distillation.train_on_policy import VALID_LABELS
+from tinker_cookbook.recipes.context_distillation.train_on_policy import VALID_LABELS
 
 _DATA_PATH = os.path.join(os.path.dirname(__file__), "..", "..", "example_data", "multilingual.txt")
 

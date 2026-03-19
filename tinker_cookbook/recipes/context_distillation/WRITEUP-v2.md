@@ -164,13 +164,13 @@ Checkpoints follow the format `tinker://<run-id>:train:0/weights/final`.
 
 ```bash
 # Step 0: Create dataset (once)
-python -m tinker_cookbook.recipes.prompt_distillation.create_labeled_dataset \
+python -m tinker_cookbook.recipes.context_distillation.create_labeled_dataset \
     --output_dir data/context_distillation --backend tinker
 
 # Exp 1: Off-policy SL
 python3 -c "
 import json
-from tinker_cookbook.recipes.prompt_distillation.train_on_policy import load_dataset_jsonl, dataset_to_sl_conversations, STUDENT_PROMPT
+from tinker_cookbook.recipes.context_distillation.train_on_policy import load_dataset_jsonl, dataset_to_sl_conversations, STUDENT_PROMPT
 texts, labels = load_dataset_jsonl('data/context_distillation/train_set.jsonl')
 convos = dataset_to_sl_conversations(texts, labels, STUDENT_PROMPT)
 with open('/tmp/sl_train_data.jsonl', 'w') as f:
@@ -185,7 +185,7 @@ python -m tinker_cookbook.recipes.prompt_distillation.train \
     wandb_project=ctx_distill wandb_name=exp1_off_policy_sl
 
 # Exp 2: KL-only
-python -m tinker_cookbook.recipes.prompt_distillation.train_on_policy \
+python -m tinker_cookbook.recipes.context_distillation.train_on_policy \
     mode=kl_only dataset_dir=data/context_distillation \
     learning_rate=1e-4 lora_rank=32 groups_per_batch=32 group_size=4 \
     max_tokens=50 temperature=1.0 kl_penalty_coef=1.0 \
@@ -193,7 +193,7 @@ python -m tinker_cookbook.recipes.prompt_distillation.train_on_policy \
     wandb_project=ctx_distill wandb_name=exp2_kl_only
 
 # Exp 3: SL → KL combo (use Exp 1 checkpoint)
-python -m tinker_cookbook.recipes.prompt_distillation.train_on_policy \
+python -m tinker_cookbook.recipes.context_distillation.train_on_policy \
     mode=kl_only dataset_dir=data/context_distillation \
     load_checkpoint_path=<exp1_checkpoint> \
     learning_rate=5e-5 lora_rank=32 groups_per_batch=32 group_size=4 \
@@ -202,7 +202,7 @@ python -m tinker_cookbook.recipes.prompt_distillation.train_on_policy \
     wandb_project=ctx_distill wandb_name=exp3_sl_then_kl
 
 # Exp 4: GRPO reward only
-python -m tinker_cookbook.recipes.prompt_distillation.train_on_policy \
+python -m tinker_cookbook.recipes.context_distillation.train_on_policy \
     mode=reward_only dataset_dir=data/context_distillation \
     learning_rate=1e-4 lora_rank=32 groups_per_batch=32 group_size=8 \
     max_tokens=50 temperature=1.0 kl_penalty_coef=0 \
@@ -210,7 +210,7 @@ python -m tinker_cookbook.recipes.prompt_distillation.train_on_policy \
     wandb_project=ctx_distill wandb_name=exp4_reward_only
 
 # Exp 5: Reward + KL
-python -m tinker_cookbook.recipes.prompt_distillation.train_on_policy \
+python -m tinker_cookbook.recipes.context_distillation.train_on_policy \
     mode=reward_and_kl dataset_dir=data/context_distillation \
     learning_rate=1e-4 lora_rank=32 groups_per_batch=32 group_size=8 \
     max_tokens=50 temperature=1.0 kl_penalty_coef=1.0 \
@@ -218,7 +218,7 @@ python -m tinker_cookbook.recipes.prompt_distillation.train_on_policy \
     wandb_project=ctx_distill wandb_name=exp5_reward_and_kl
 
 # Evaluate any checkpoint
-python -m tinker_cookbook.recipes.prompt_distillation.evaluate \
+python -m tinker_cookbook.recipes.context_distillation.evaluate \
     --dataset data/context_distillation/test_set.jsonl \
     --checkpoint_path <path> --prompt student --limit 200
 ```
