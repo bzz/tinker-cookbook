@@ -1,4 +1,4 @@
-"""Smoke test for the RLCF (Checklist Feedback) recipe."""
+"""Smoke test for the RLCF (Checklist Feedback) DPO recipe."""
 
 import pytest
 
@@ -8,14 +8,12 @@ MODULE = "tinker_cookbook.recipes.rlcf.train"
 
 
 @pytest.mark.integration
-def test_rlcf():
+def test_rlcf_dpo():
     run_recipe(
         MODULE,
         [
             "model_name=Qwen/Qwen2.5-7B-Instruct",
-            "groups_per_batch=4",
-            "group_size=2",
-            "max_tokens=32",
+            "batch_size=32",
             "behavior_if_log_dir_exists=delete",
         ],
     )
