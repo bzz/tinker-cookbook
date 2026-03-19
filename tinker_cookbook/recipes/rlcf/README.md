@@ -4,66 +4,65 @@ Minimal research prototype of the checklist feedback approach from
 [Viswanathan et al. (2025) — "Checklists Are Better Than Reward Models For Aligning Language Models"](https://arxiv.org/abs/2507.18624),
 built on the Tinker API.
 
-## How it works
+## Two training scripts
 
-The paper's pipeline (reproduced here):
+| Script | Algorithm | Data | Faithful to paper? |
+|---|---|---|---|
+| `train_dpo.py` | **Offline DPO** (self-contained loop) | `viswavi/rlcf` pre-scored pairs | **Yes** — matches `train_rlcf.sh` |
+| `train.py` | Online GRPO (`rl.train.main`) | Live checklist grading via LLM judge | No — on-policy variant for experiments |
 
-1. **Checklists** are generated offline for each instruction — atomic yes/no
-   criteria with importance weights (0–100). Pre-computed in [`viswavi/rlcf`](https://huggingface.co/datasets/viswavi/rlcf).
-2. **Response pairs** are scored against checklists by an LLM judge.
-   The weighted checklist score determines chosen vs rejected.
-3. **DPO training** on the checklist-scored preference pairs (beta=0.1, lr=3e-6, 2 epochs).
+### `train_dpo.py` — paper-faithful DPO (recommended)
 
-This recipe implements step 3 — DPO training using the pre-computed
-checklist-scored dataset — faithfully matching the paper's training script
-(`openrlhf_training_scripts/train_rlcf.sh`).
+Self-contained single-file training loop (modeled after `rl_loop.py`).
+Loads `viswavi/rlcf` chosen/rejected pairs, computes reference logprobs,
+runs `forward_backward_custom` with inlined DPO loss, and calls `optim_step`.
+No delegation to framework train mains.
+
+```bash
+python -m tinker_cookbook.recipes.rlcf.train_dpo
+
+python -m tinker_cookbook.recipes.rlcf.train_dpo \
+    dpo_beta=0.1 learning_rate=3e-6 batch_size=256 num_epochs=2
+```
+
+### `train.py` — online GRPO with checklist environment
+
+Wraps `rl.train.main` with `ChecklistGradedEnv` from `env.py`. Each response
+is scored online by an LLM judge against instruction-specific checklists.
+Useful for on-policy experiments beyond the paper's offline setup.
+
+```bash
+python -m tinker_cookbook.recipes.rlcf.train
+
+python -m tinker_cookbook.recipes.rlcf.train \
+    model_name=Qwen/Qwen2.5-7B-Instruct \
+    groups_per_batch=32 group_size=4 learning_rate=3e-6 max_tokens=2048
+```
 
 ## How it differs from the rubric recipe
 
-Both use LLM-as-judge grading against criteria, but the training algorithm
-and reward structure differ:
-
-| | **Rubric** | **RLCF (this recipe)** |
+| | **Rubric** | **RLCF** |
 |---|---|---|
-| **Training algorithm** | Online GRPO (`rl.train.main`) | **Offline DPO** (`train_dpo.main`) |
-| **Data** | Online: sample → grade → train | **Offline**: pre-scored preference pairs |
+| **Training algorithm** | Online GRPO | **Offline DPO** (paper) or online GRPO (variant) |
+| **Data** | Online: sample → grade → train | DPO: pre-scored pairs / GRPO: live grading |
 | **Criteria** | Free-form rubric strings | Yes/no-style checklist questions |
 | **Weights** | All items weighted equally | Each item has an explicit importance weight (0–100) |
-| **Reward** | Simple average of rubric scores | Weighted average: `Σ(weight_i × score_i) / Σ(weight_i)` |
+| **Reward** | Simple average of scores | Weighted average: `Σ(weight_i × score_i) / Σ(weight_i)` |
 | **Scoring prompt** | Generic "score 0–1" | Calibrated 0–100 prompt with worked examples |
 | **Universal requirements** | None | Quality/relevance check appended to every checklist |
-
-The core insight from the paper is that **decomposing** "helpfulness" into
-verifiable, atomic, weighted requirements reduces reward hacking and improves
-instruction following — compared to either a monolithic reward model or
-unweighted rubric items.
-
-## Quick start
-
-```bash
-# Run DPO training with paper defaults on viswavi/rlcf dataset
-python -m tinker_cookbook.recipes.rlcf.train
-
-# Override hyperparameters
-python -m tinker_cookbook.recipes.rlcf.train \
-    model_name=Qwen/Qwen2.5-7B-Instruct \
-    learning_rate=3e-6 \
-    dpo_beta=0.1 \
-    batch_size=256 \
-    num_epochs=2
-```
 
 ## Files
 
 | File | Purpose |
 |---|---|
-| `train.py` | CLI entry point: `RLCFComparisonBuilder` + `train_dpo.main` with paper defaults |
-| `env.py` | `ChecklistGradedEnv` — online GRPO environment (for future on-policy RLCF experiments) |
-| `data.py` | `ChecklistItem` / `ChecklistDatapoint` types, JSONL and HuggingFace loaders |
+| `train_dpo.py` | **Paper-faithful** self-contained DPO loop |
+| `train.py` | Online GRPO variant wrapping `rl.train.main` |
+| `env.py` | `ChecklistGradedEnv` — LLM judge grading for GRPO |
+| `data.py` | `ChecklistItem` / `ChecklistDatapoint` types, JSONL + HuggingFace loaders |
 | `prompts.py` | Paper-faithful prompts: checklist generation, numerical evaluation, universal requirements |
-| `generate_data.py` | Synthetic example data generator for testing the online env |
+| `generate_data.py` | Synthetic example data generator for testing the GRPO env |
 
-## Paper defaults
+## Paper defaults (`train_dpo.py`)
 
 | Parameter | Value | Source |
 |---|---|---|

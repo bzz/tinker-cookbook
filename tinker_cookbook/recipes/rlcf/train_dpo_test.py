@@ -2,7 +2,7 @@
 
 import torch
 
-from tinker_cookbook.recipes.rlcf.train import Config, compute_dpo_loss, get_batches
+from tinker_cookbook.recipes.rlcf.train_dpo import Config, compute_dpo_loss, get_batches
 
 
 class TestConfig:
