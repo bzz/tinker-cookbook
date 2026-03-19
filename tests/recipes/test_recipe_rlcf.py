@@ -14,6 +14,6 @@ def test_rlcf_dpo():
         [
             "model_name=Qwen/Qwen2.5-7B-Instruct",
             "batch_size=32",
-            "behavior_if_log_dir_exists=delete",
+            "max_steps=2",
         ],
     )

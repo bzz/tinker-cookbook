@@ -1,224 +1,345 @@
 """
-RLCF: Reinforcement Learning from Checklist Feedback — DPO training.
+RLCF: Reinforcement Learning from Checklist Feedback — self-contained DPO loop.
 
-Trains a language model using DPO on preference pairs scored by
-instruction-specific checklists, faithfully reproducing the approach
-from Viswanathan et al. (2025):
+Faithfully reproduces the training procedure from Viswanathan et al. (2025):
   "Checklists Are Better Than Reward Models For Aligning Language Models"
   https://arxiv.org/abs/2507.18624
 
-The paper pipeline:
-  1. Generate checklists for instructions (offline, pre-computed in viswavi/rlcf)
-  2. Score candidate response pairs against checklists using LLM judges
-  3. Rank chosen/rejected by weighted checklist score
-  4. Train with DPO (beta=0.1, lr=3e-6, 2 epochs, max_len=2048)
+Paper pipeline:
+  1. Checklists generated offline for each instruction (pre-computed in viswavi/rlcf)
+  2. Response pairs scored against checklists by LLM judges
+  3. Chosen/rejected ranked by weighted checklist score
+  4. DPO training (this script): beta=0.1, lr=3e-6, 2 epochs, max_len=2048
+
+Structure modeled after rl_loop.py / tinker_train_general_reasoner.py:
+a single self-contained training loop with no delegation to framework train mains.
 
 Usage::
 
     python -m tinker_cookbook.recipes.rlcf.train
 
     python -m tinker_cookbook.recipes.rlcf.train \\
-        model_name=Qwen/Qwen2.5-7B-Instruct \\
-        learning_rate=3e-6 \\
-        dpo_beta=0.1 \\
-        batch_size=256
+        dpo_beta=0.1 learning_rate=3e-6 batch_size=256 num_epochs=2
 """
 
-from datetime import datetime
+import asyncio
+import logging
+import time
 from typing import cast
 
 import chz
 import datasets
+import tinker
+import torch
+import torch.nn.functional as F
 
-from tinker_cookbook import checkpoint_utils, cli_utils, renderers
-from tinker_cookbook.preference import train_dpo
-from tinker_cookbook.preference.dpo_datasets import DPODatasetBuilderFromComparisons
-from tinker_cookbook.preference.preference_datasets import ComparisonDatasetBuilder
-from tinker_cookbook.preference.types import Comparison, LabeledComparison
-from tinker_cookbook.supervised.types import ChatDatasetBuilder, ChatDatasetBuilderCommonConfig
-from tinker_cookbook.utils.lr_scheduling import LRSchedule
+from tinker_cookbook import checkpoint_utils, model_info, renderers
+from tinker_cookbook.supervised.common import datum_from_model_input_weights
+from tinker_cookbook.tokenizer_utils import get_tokenizer
+from tinker_cookbook.utils import ml_log
+from tinker_cookbook.utils.lr_scheduling import LRSchedule, compute_schedule_lr_multiplier
 
-
-# ---------------------------------------------------------------------------
-# Dataset: viswavi/rlcf chosen/rejected pairs scored by checklists
-# ---------------------------------------------------------------------------
-
-
-@chz.chz
-class RLCFComparisonBuilder(ComparisonDatasetBuilder):
-    """Load checklist-scored preference pairs from the viswavi/rlcf dataset.
-
-    The dataset contains chosen/rejected conversation pairs where ranking
-    was determined by weighted checklist scores (the paper's core contribution).
-    Each row also includes the ``requirements`` field with the checklist used
-    for scoring, preserved here for logging/analysis.
-    """
-
-    dataset_name: str = "viswavi/rlcf"
-    test_size: int = 1024
-
-    def get_train_and_test_datasets(self) -> tuple[datasets.Dataset, datasets.Dataset | None]:
-        dataset = datasets.load_dataset(self.dataset_name, split="train")
-        dataset = cast(datasets.Dataset, dataset)
-        dataset = dataset.shuffle(seed=0)
-        test_dataset = dataset.take(self.test_size)
-        train_dataset = dataset.skip(self.test_size)
-        return train_dataset, test_dataset
-
-    def example_to_labeled_comparison(self, example: dict) -> LabeledComparison | None:
-        chosen = example.get("chosen")
-        rejected = example.get("rejected")
-        if not chosen or not rejected:
-            return None
-
-        # viswavi/rlcf stores conversations as list[dict] with role/content
-        if isinstance(chosen, list) and len(chosen) >= 2:
-            prompt_messages: list[renderers.Message] = [
-                {"role": msg["role"], "content": msg["content"]}
-                for msg in chosen[:-1]
-            ]
-            chosen_completion: list[renderers.Message] = [
-                {"role": chosen[-1]["role"], "content": chosen[-1]["content"]}
-            ]
-            rejected_completion: list[renderers.Message] = [
-                {"role": rejected[-1]["role"], "content": rejected[-1]["content"]}
-            ]
-        else:
-            return None
-
-        comparison = Comparison(
-            prompt_conversation=prompt_messages,
-            completion_A=chosen_completion,
-            completion_B=rejected_completion,
-        )
-        return LabeledComparison(comparison=comparison, label="A")
+logger = logging.getLogger(__name__)
+logging.getLogger("httpx").setLevel(logging.WARN)
 
 
 # ---------------------------------------------------------------------------
-# CLI config — paper-faithful defaults
+# Config — paper-faithful defaults from train_rlcf.sh
 # ---------------------------------------------------------------------------
 
 
 @chz.chz
-class CLIConfig:
-    """Command-line configuration for RLCF DPO training.
-
-    Defaults reproduce the paper's training setup (Table 1, train_rlcf.sh):
-    - Qwen/Qwen2.5-7B-Instruct as the policy model
-    - DPO with beta=0.1
-    - lr=3e-6 with linear schedule (min_lr_ratio=0.75 in paper)
-    - 2 epochs over viswavi/rlcf dataset
-    - max_len=2048, batch_size=1024 (reduced default for single-machine runs)
-    """
-
-    # Model
-    model_name: str = "Qwen/Qwen2.5-7B-Instruct"
-    lora_rank: int = 32
-    renderer_name: str | None = None
-    load_checkpoint_path: str | None = None
-
-    # DPO hyperparameters (paper defaults)
-    learning_rate: float = 3e-6
-    lr_schedule: LRSchedule = "linear"
-    dpo_beta: float = 0.1
-    num_epochs: int = 2
-    max_length: int = 2048
-    batch_size: int = 256
-
-    # Dataset
-    dataset_name: str = "viswavi/rlcf"
-    test_size: int = 1024
-
-    # Logging
-    log_path: str | None = None
-    wandb_project: str | None = None
-    wandb_name: str | None = None
-
-    # Checkpointing & eval
-    save_every: int = 32
-    eval_every: int = 10
-
-    # Service
+class Config:
     base_url: str | None = None
-    behavior_if_log_dir_exists: cli_utils.LogdirBehavior = "ask"
+    log_path: str = "/tmp/tinker-examples/rlcf"
+    model_name: str = "Qwen/Qwen2.5-7B-Instruct"
+    dataset_name: str = "viswavi/rlcf"
 
+    # DPO hyperparameters (paper: train_rlcf.sh)
+    dpo_beta: float = 0.1              # --beta 0.1
+    learning_rate: float = 3e-6        # --learning_rate 3e-6
+    lr_schedule: LRSchedule = "linear" # --min_lr_ratio 0.75
+    num_epochs: int = 2                # --max_epochs 2
+    max_length: int = 2048             # --max_len 2048
+    batch_size: int = 256              # --train_batch_size 1024 (reduced for single-machine)
+
+    lora_rank: int = 32
+    save_every: int = 32               # --save_steps 32
     max_steps: int | None = None
+    ttl_seconds: int | None = 604800
 
 
-def get_dataset_builder(
+# ---------------------------------------------------------------------------
+# Data: load viswavi/rlcf chosen/rejected pairs into Datums
+# ---------------------------------------------------------------------------
+
+
+def load_rlcf_dataset(
     dataset_name: str,
-    test_size: int,
-    model_name: str,
-    renderer_name: str,
+    renderer: renderers.Renderer,
     max_length: int,
-    batch_size: int,
-) -> ChatDatasetBuilder:
-    common_config = ChatDatasetBuilderCommonConfig(
-        model_name_for_tokenizer=model_name,
-        renderer_name=renderer_name,
-        max_length=max_length,
-        batch_size=batch_size,
+) -> list[tinker.Datum]:
+    """Load chosen/rejected pairs from viswavi/rlcf and convert to interleaved Datums.
+
+    Returns a flat list where datums at even indices are chosen and odd indices
+    are rejected, matching the convention used by the DPO loss.
+    """
+    ds = datasets.load_dataset(dataset_name, split="train")
+    ds = cast(datasets.Dataset, ds)
+    logger.info(f"Loaded {len(ds)} rows from {dataset_name}")
+
+    datums: list[tinker.Datum] = []
+    skipped = 0
+
+    for row in ds:
+        chosen = row["chosen"]
+        rejected = row["rejected"]
+
+        if not chosen or not rejected:
+            skipped += 1
+            continue
+        if not isinstance(chosen, list) or len(chosen) < 2:
+            skipped += 1
+            continue
+
+        try:
+            chosen_convo: list[renderers.Message] = [
+                {"role": m["role"], "content": m["content"]} for m in chosen
+            ]
+            rejected_convo: list[renderers.Message] = [
+                {"role": m["role"], "content": m["content"]} for m in rejected
+            ]
+
+            chosen_mi, chosen_w = renderer.build_supervised_example(chosen_convo)
+            rejected_mi, rejected_w = renderer.build_supervised_example(rejected_convo)
+
+            datums.append(datum_from_model_input_weights(chosen_mi, chosen_w, max_length))
+            datums.append(datum_from_model_input_weights(rejected_mi, rejected_w, max_length))
+        except Exception as e:
+            logger.debug(f"Skipping row: {e}")
+            skipped += 1
+
+    logger.info(f"Built {len(datums) // 2} preference pairs ({skipped} rows skipped)")
+    return datums
+
+
+def get_batches(
+    datums: list[tinker.Datum], batch_size: int, epoch_seed: int
+) -> list[list[tinker.Datum]]:
+    """Shuffle pairs and split into batches (each batch has interleaved chosen/rejected)."""
+    n_pairs = len(datums) // 2
+    indices = list(range(n_pairs))
+    rng = torch.Generator().manual_seed(epoch_seed)
+    shuffled = torch.randperm(n_pairs, generator=rng).tolist()
+
+    batches: list[list[tinker.Datum]] = []
+    for start in range(0, n_pairs, batch_size):
+        batch: list[tinker.Datum] = []
+        for idx in shuffled[start : start + batch_size]:
+            batch.append(datums[2 * idx])      # chosen
+            batch.append(datums[2 * idx + 1])   # rejected
+        if batch:
+            batches.append(batch)
+    return batches
+
+
+# ---------------------------------------------------------------------------
+# DPO loss (from preference/train_dpo.py, inlined for self-containment)
+# ---------------------------------------------------------------------------
+
+
+def compute_dpo_loss(
+    chosen_logprobs: list[torch.Tensor],
+    rejected_logprobs: list[torch.Tensor],
+    chosen_ref_logprobs: list[torch.Tensor],
+    rejected_ref_logprobs: list[torch.Tensor],
+    dpo_beta: float,
+) -> tuple[torch.Tensor, dict[str, float]]:
+    chosen_log_ratio = torch.stack(
+        [lp - rlp for lp, rlp in zip(chosen_logprobs, chosen_ref_logprobs, strict=True)]
     )
-    return DPODatasetBuilderFromComparisons(
-        common_config=common_config,
-        comparison_builder=RLCFComparisonBuilder(
-            dataset_name=dataset_name,
-            test_size=test_size,
-        ),
+    rejected_log_ratio = torch.stack(
+        [lp - rlp for lp, rlp in zip(rejected_logprobs, rejected_ref_logprobs, strict=True)]
     )
 
+    losses = -F.logsigmoid(dpo_beta * (chosen_log_ratio - rejected_log_ratio))
+    loss = losses.mean()
 
-def cli_main(cli_config: CLIConfig) -> None:
-    """Convert CLI config to full DPO config and launch training."""
+    accuracy = (chosen_log_ratio > rejected_log_ratio).float().mean().item()
+    chosen_rewards = dpo_beta * chosen_log_ratio
+    rejected_rewards = dpo_beta * rejected_log_ratio
+    margin = (chosen_rewards - rejected_rewards).mean().item()
 
-    renderer_name = checkpoint_utils.resolve_renderer_name_from_checkpoint_or_default(
-        model_name=cli_config.model_name,
-        explicit_renderer_name=cli_config.renderer_name,
-        load_checkpoint_path=cli_config.load_checkpoint_path,
-        base_url=cli_config.base_url,
+    return loss, {
+        "dpo/loss": loss.item(),
+        "dpo/accuracy": accuracy,
+        "dpo/margin": margin,
+        "dpo/chosen_reward": chosen_rewards.mean().item(),
+        "dpo/rejected_reward": rejected_rewards.mean().item(),
+    }
+
+
+# ---------------------------------------------------------------------------
+# Main training loop
+# ---------------------------------------------------------------------------
+
+
+def main(config: Config):
+    ml_logger = ml_log.setup_logging(
+        log_dir=config.log_path,
+        wandb_project=None,
+        wandb_name=None,
+        config=config,
+        do_configure_logging_module=True,
     )
 
-    model_slug = cli_config.model_name.replace("/", "-")
-    run_name = (
-        f"rlcf-dpo-{model_slug}-lr{cli_config.learning_rate}"
-        f"-beta{cli_config.dpo_beta}-bs{cli_config.batch_size}"
-        f"-{datetime.now().strftime('%Y-%m-%d-%H-%M')}"
+    tokenizer = get_tokenizer(config.model_name)
+    renderer_name = model_info.get_recommended_renderer_name(config.model_name)
+    renderer = renderers.get_renderer(renderer_name, tokenizer)
+    logger.info(f"Using renderer: {renderer_name}")
+
+    # Load dataset
+    logger.info("Loading dataset...")
+    all_datums = load_rlcf_dataset(config.dataset_name, renderer, config.max_length)
+    n_pairs = len(all_datums) // 2
+
+    # Setup training client
+    service_client = tinker.ServiceClient(base_url=config.base_url)
+
+    resume_info = checkpoint_utils.get_last_checkpoint(config.log_path)
+    if resume_info:
+        training_client = service_client.create_training_client_from_state_with_optimizer(
+            resume_info.state_path
+        )
+        start_epoch = resume_info.epoch or 0
+        start_batch = resume_info.batch
+        logger.info(f"Resuming from epoch {start_epoch} batch {start_batch}")
+    else:
+        training_client = service_client.create_lora_training_client(
+            base_model=config.model_name, rank=config.lora_rank
+        )
+        start_epoch = 0
+        start_batch = 0
+
+    # Reference model: snapshot of initial weights for DPO KL constraint
+    reference_client = training_client.save_weights_and_get_sampling_client("reference")
+
+    n_batches = n_pairs // config.batch_size
+    total_steps = n_batches * config.num_epochs
+    if config.max_steps is not None:
+        total_steps = min(total_steps, config.max_steps)
+
+    logger.info(
+        f"Training: {n_pairs} pairs, {n_batches} batches/epoch, "
+        f"{config.num_epochs} epochs = {n_batches * config.num_epochs} steps"
     )
 
-    log_path = cli_config.log_path or f"/tmp/tinker-examples/rlcf/{run_name}"
-    wandb_name = cli_config.wandb_name or run_name
+    # -- Training loop --
+    global_step = start_epoch * n_batches + start_batch
+    for epoch in range(start_epoch, config.num_epochs):
+        batches = get_batches(all_datums, config.batch_size, epoch_seed=epoch)
+        batch_start = start_batch if epoch == start_epoch else 0
 
-    cli_utils.check_log_dir(log_path, behavior_if_exists=cli_config.behavior_if_log_dir_exists)
+        for batch_idx in range(batch_start, len(batches)):
+            if config.max_steps is not None and global_step >= config.max_steps:
+                break
 
-    config = train_dpo.Config(
-        log_path=log_path,
-        model_name=cli_config.model_name,
-        renderer_name=renderer_name,
-        dataset_builder=get_dataset_builder(
-            dataset_name=cli_config.dataset_name,
-            test_size=cli_config.test_size,
-            model_name=cli_config.model_name,
-            renderer_name=renderer_name,
-            max_length=cli_config.max_length,
-            batch_size=cli_config.batch_size,
-        ),
-        load_checkpoint_path=cli_config.load_checkpoint_path,
-        learning_rate=cli_config.learning_rate,
-        lr_schedule=cli_config.lr_schedule,
-        dpo_beta=cli_config.dpo_beta,
-        num_epochs=cli_config.num_epochs,
-        lora_rank=cli_config.lora_rank,
-        save_every=cli_config.save_every,
-        eval_every=cli_config.eval_every,
-        base_url=cli_config.base_url,
-        wandb_project=cli_config.wandb_project,
-        wandb_name=wandb_name,
-        max_steps=cli_config.max_steps,
+            t_start = time.time()
+            data = batches[batch_idx]
+
+            # Checkpoint
+            if config.save_every > 0 and global_step % config.save_every == 0 and global_step > 0:
+                checkpoint_utils.save_checkpoint(
+                    training_client=training_client,
+                    name=f"{global_step:06d}",
+                    log_path=config.log_path,
+                    kind="both",
+                    loop_state={"epoch": epoch, "batch": batch_idx},
+                    ttl_seconds=config.ttl_seconds,
+                )
+
+            # LR schedule
+            learning_rate = config.learning_rate * compute_schedule_lr_multiplier(
+                lr_schedule=config.lr_schedule, step=global_step, total_steps=total_steps
+            )
+            adam_params = tinker.AdamParams(
+                learning_rate=learning_rate, beta1=0.9, beta2=0.95, eps=1e-8
+            )
+
+            # Split into chosen/rejected
+            chosen_data = [data[i] for i in range(0, len(data), 2)]
+            rejected_data = [data[i] for i in range(1, len(data), 2)]
+
+            # Reference logprobs (for KL constraint in DPO)
+            full_sequences = []
+            for datum in data:
+                target_tokens = datum.loss_fn_inputs["target_tokens"].data
+                if target_tokens:
+                    full_sequences.append(datum.model_input.append_int(int(target_tokens[-1])))
+                else:
+                    full_sequences.append(datum.model_input)
+
+            async def _get_ref_logprobs():
+                return await asyncio.gather(
+                    *[reference_client.compute_logprobs_async(seq) for seq in full_sequences]
+                )
+
+            all_ref_logprobs = asyncio.run(_get_ref_logprobs())
+            all_ref_logprob_seqs = [torch.tensor(lp[1:]) for lp in all_ref_logprobs]
+            chosen_ref_lp = [all_ref_logprob_seqs[i] for i in range(0, len(data), 2)]
+            rejected_ref_lp = [all_ref_logprob_seqs[i] for i in range(1, len(data), 2)]
+
+            # DPO loss closure for forward_backward_custom
+            def dpo_loss_fn(
+                data: list[tinker.Datum], logprobs_list: list[torch.Tensor]
+            ) -> tuple[torch.Tensor, dict[str, float]]:
+                c_lp_seqs = [logprobs_list[i] for i in range(0, len(data), 2)]
+                r_lp_seqs = [logprobs_list[i] for i in range(1, len(data), 2)]
+
+                c_lps, c_ref, r_lps, r_ref = [], [], [], []
+                for i in range(len(chosen_data)):
+                    c_w = torch.tensor(chosen_data[i].loss_fn_inputs["weights"].data)
+                    r_w = torch.tensor(rejected_data[i].loss_fn_inputs["weights"].data)
+                    c_lps.append(torch.dot(c_lp_seqs[i].float(), c_w.float()))
+                    c_ref.append(torch.dot(chosen_ref_lp[i].float(), c_w.float()))
+                    r_lps.append(torch.dot(r_lp_seqs[i].float(), r_w.float()))
+                    r_ref.append(torch.dot(rejected_ref_lp[i].float(), r_w.float()))
+
+                return compute_dpo_loss(c_lps, r_lps, c_ref, r_ref, config.dpo_beta)
+
+            # Forward-backward + optimizer step
+            bwd_result = training_client.forward_backward_custom(data, dpo_loss_fn).result()
+            training_client.optim_step(adam_params).result()
+
+            # Log metrics
+            metrics: dict[str, float] = {
+                "progress/epoch": epoch,
+                "progress/batch": batch_idx,
+                "progress/done_frac": global_step / total_steps if total_steps > 0 else 0,
+                "optim/lr": learning_rate,
+                "num_pairs": len(chosen_data),
+                "time/step": time.time() - t_start,
+            }
+            metrics.update(bwd_result.metrics)
+            ml_logger.log_metrics(metrics, step=global_step)
+
+            global_step += 1
+
+        if config.max_steps is not None and global_step >= config.max_steps:
+            break
+
+    # Final checkpoint
+    checkpoint_utils.save_checkpoint(
+        training_client=training_client,
+        name="final",
+        log_path=config.log_path,
+        kind="both",
+        loop_state={"epoch": config.num_epochs, "batch": 0},
+        ttl_seconds=None,
     )
-
-    train_dpo.main(config)
+    ml_logger.close()
+    logger.info("RLCF DPO training completed")
 
 
 if __name__ == "__main__":
-    cli_config = chz.entrypoint(CLIConfig)
-    cli_main(cli_config)
+    chz.nested_entrypoint(main)
