@@ -1,76 +1,139 @@
-# Prompt Distillation
+# Prompt Distillation / On-Policy Context Distillation
 
-Prompt Distillation -- also known as context distillation [1,2] -- is a training method that can "make an LLM internalize the prompt into its parameters".
-In this method, the model is fine-tuned to behave as if it had been provided with a long and complex prompt, even without actually accessing it.
+## Overview
 
-For example, we want to internalize the following target prompt $p$:
+This recipe explores several methods for teaching a language model to classify
+text into one of 13 language categories **without** seeing the full classification
+instructions at inference time (context distillation).
 
-`Classify the language of the provided text into these labels: en, fr, zh, ja ...`
+Methods compared:
 
-After prompt distillation, the LLM will respond with only the language label after receiving a query without seeing the prompt $p$, e.g.,
-```
-Query: 一生、バンドしてくれる？
-Response: ja
-```
+| Mode | Signal | CLI flag |
+|---|---|---|
+| Off-policy SL | Teacher-generated labels, cross-entropy | `train.py` |
+| KL-only | Teacher logprobs, KL penalty | `train_on_policy.py mode=kl_only` |
+| GRPO reward | Ground-truth accuracy reward | `train_on_policy.py mode=reward_only` |
+| Reward + KL | Accuracy reward + teacher KL | `train_on_policy.py mode=reward_and_kl` |
 
-At a high level, this method involves two stages:
-1. **Creating data for distillation**: A teacher language model uses $p$ to generate responses $r$ on a set of queries $q$; i.e. $r \sim \text{teacher}(\cdot|p, q)$
-2. **Training the student model**: A student model is fine-tuned to predict the responses $r$ to the query $q$ but without accessing $p$, hence learning to behave as if the target prompt is in its context; i.e. $\text{student}(\cdot | q)$ should predict $r$
-
-## Example
-
-The Tinker Cookbook provides a prompt distillation recipe tailored for a language classification task. The objective is straightforward: given a text query, the model should predict a two-character code corresponding to the language of the input. The set of possible labels is:
-```
-ar (Arabic), de (German), el (Greek), en (English), es (Spanish), fr (French), hi (Hindi), ru (Russian), tr (Turkish), ur (Urdu), vi (Vietnamese), zh (Chinese - Simplified), ot (Other/Unknown).
-```
-
-The recipe in [`create_data.py`](create_data.py) also includes handling strategies for inputs containing code, numerical content, or multiple languages.
-
-In the example below, the same model (`Qwen/Qwen3-30B-A3B`) is used as both teacher and student, though in general they need not be identical.
+See [`WRITEUP.md`](WRITEUP.md) for results and
+[`analysis_results.md`](../../data/context_distillation/analysis/analysis_results.md) for the
+root-cause investigation.
 
 ---
 
-### Step 1: Generate Training Data
+## Full Workflow (reproducible)
 
-Generate prompt distillation data using the teacher model with [`create_data.py`](create_data.py):
+### Step 0: Create the labeled dataset
 
-```bash
-mkdir -p /tmp/tinker-datasets
-python -m tinker_cookbook.recipes.prompt_distillation.create_data \
-  output_file=/tmp/tinker-datasets/prompt_distillation_lang.jsonl
-```
-
-This command will:
-- Use the configured teacher model to generate language classification examples
-- Save the distilled dataset to the specified output file
-- Create diverse training examples suitable for student model fine-tuning
-
-### Step 2: Train the Student Model
-
-Fine-tune a student model on the distillation data using [`train.py`](train.py):
+Ground-truth labels are produced by an independent model or a reliable
+two-step identification method, stored as JSONL.
 
 ```bash
-python -m tinker_cookbook.recipes.prompt_distillation.train
+# Option A: OpenAI API (preferred — independent ground truth, requires OPENAI_API_KEY)
+python -m tinker_cookbook.recipes.prompt_distillation.create_labeled_dataset \
+    --output_dir data/context_distillation --backend openai --model gpt-4o-mini
+
+# Option B: Tinker two-step fallback (identify language → map to label set)
+python -m tinker_cookbook.recipes.prompt_distillation.create_labeled_dataset \
+    --output_dir data/context_distillation --backend tinker
+
+# Quick sanity check on a few examples
+python -m tinker_cookbook.recipes.prompt_distillation.create_labeled_dataset \
+    --output_dir /tmp/test_ds --backend tinker --limit 15
 ```
 
-The training script will:
-- Load the generated distillation dataset
-- Apply optimized training configurations
-- Fine-tune the student model for language classification
+Produces `train_set.jsonl` and `test_set.jsonl` with `{"text": ..., "label": ...}` lines.
 
-### Step 3: Test Your Model
+### Step 1: Evaluate the baseline / pick a prompt
 
-Once training is complete, you can test your distilled model by sampling from the trained model to verify its performance on language classification tasks.
+Use the eval script to measure any model + prompt combination on the test set:
 
-## Advanced Configuration
+```bash
+# Base model with student prompt (short)
+python -m tinker_cookbook.recipes.prompt_distillation.evaluate \
+    --dataset data/context_distillation/test_set.jsonl \
+    --prompt student --limit 100
 
-The prompt distillation recipe can be customized for different scenarios:
+# Base model with teacher prompt (full instructions)
+python -m tinker_cookbook.recipes.prompt_distillation.evaluate \
+    --dataset data/context_distillation/test_set.jsonl \
+    --prompt teacher --limit 100
 
-- **Teacher model selection**: Choose different base models based on your requirements
-- **Sampling strategies**: Adjust temperature and other generation parameters
-- **Data volume**: Scale the number of generated examples based on your needs
-- **Training hyperparameters**: Fine-tune learning rates and other training settings
+# Custom prompt (must contain {text})
+python -m tinker_cookbook.recipes.prompt_distillation.evaluate \
+    --dataset data/context_distillation/test_set.jsonl \
+    --prompt "Detect the language: {text}\nFinal Answer:" --limit 50
 
-[1] Askell, A., Bai, Y., Chen, A., Drain, D., Ganguli, D., Henighan, T., Jones, A., Joseph, N., Mann, B., DasSarma, N., Elhage, N., Hatfield-Dodds, Z., Hernandez, D., Kernion, J., Ndousse, K., Olsson, C., Amodei, D., Brown, T., Clark, J., McCandlish, S., Olah, C., & Kaplan, J. (2021). A general language assistant as a laboratory for alignment. arXiv preprint arXiv:2112.00861.
+# Evaluate a trained checkpoint
+python -m tinker_cookbook.recipes.prompt_distillation.evaluate \
+    --dataset data/context_distillation/test_set.jsonl \
+    --checkpoint_path tinker://... --prompt student
+```
 
-[2] Snell, C., Klein, D., & Zhong, R. (2022). Learning by distilling context. arXiv preprint arXiv:2209.15189.
+### Step 2: Run training experiments
+
+All hyperparameters are set via CLI for reproducibility.
+
+All experiments read from `dataset_dir=data/context_distillation` by default.
+
+```bash
+# --- KL-only context distillation ---
+python -m tinker_cookbook.recipes.prompt_distillation.train_on_policy \
+    mode=kl_only \
+    log_path=data/context_distillation/logs/exp2_kl_only \
+    learning_rate=1e-4 lora_rank=32 groups_per_batch=32 group_size=4 \
+    max_tokens=50 temperature=1.0 kl_penalty_coef=1.0 max_steps=30
+
+# --- GRPO reward only ---
+python -m tinker_cookbook.recipes.prompt_distillation.train_on_policy \
+    mode=reward_only \
+    log_path=data/context_distillation/logs/exp4_reward_only \
+    learning_rate=1e-4 lora_rank=32 groups_per_batch=32 group_size=8 \
+    max_tokens=50 temperature=1.0 kl_penalty_coef=0 max_steps=30
+
+# --- Reward + KL combined ---
+python -m tinker_cookbook.recipes.prompt_distillation.train_on_policy \
+    mode=reward_and_kl \
+    log_path=data/context_distillation/logs/exp5_reward_and_kl \
+    learning_rate=1e-4 lora_rank=32 groups_per_batch=32 group_size=8 \
+    max_tokens=50 temperature=1.0 kl_penalty_coef=1.0 max_steps=30
+```
+
+### Step 3: Evaluate trained checkpoints
+
+```bash
+python -m tinker_cookbook.recipes.prompt_distillation.evaluate \
+    --dataset data/context_distillation/test_set.jsonl \
+    --checkpoint_path <checkpoint_path> --prompt student
+```
+
+### Step 4: Inspect model behavior
+
+Use `play_w_env.py` to investigate token-level KL, group filtering, error
+patterns, and advantage magnitudes:
+
+```bash
+python -m tinker_cookbook.recipes.prompt_distillation.play_w_env
+```
+
+---
+
+## File Reference
+
+| File | Purpose |
+|---|---|
+| `create_labeled_dataset.py` | Ground-truth labels via OpenAI or Tinker (two-step) → `{train,test}_set.jsonl` |
+| `evaluate.py` | Evaluate any model+prompt on `test_set.jsonl` (`--limit N`, `--prompt`, `--checkpoint_path`) |
+| `train_on_policy.py` | Training: kl_only / reward_only / reward_and_kl (reads from `dataset_dir`) |
+| `play_w_env.py` | Analysis: token-level KL, errors, group filtering |
+| `WRITEUP.md` | Experiment results and discussion |
+
+---
+
+## References
+
+- [Askell et al. (2021). A General Language Assistant as a Laboratory for Alignment.](https://arxiv.org/abs/2112.00861)
+- [Snell et al. (2022). Learning by Distilling Context.](https://arxiv.org/abs/2209.15189)
+- [Agarwal et al. (2023). GKD: Generalized Knowledge Distillation.](https://arxiv.org/abs/2306.13649)
+- [Thinking Machines Lab. On-Policy Distillation.](https://thinkingmachines.ai/blog/on-policy-distillation/)
+- [On-Policy Context Distillation project idea.](https://github.com/thinking-machines-lab/tinker-project-ideas)
