@@ -11,9 +11,19 @@ Implements the core idea from arXiv:2507.18624 using the Tinker API:
     matching the paper's fixed-evaluator assumption.
 
 Divergence from the paper's original pipeline:
-  - Paper trains offline DPO on pre-scored preference pairs.
+  - Paper trains offline DPO on pre-scored preference pairs; see dpo_checklist.py.
   - This prototype runs **online** GRPO, validating whether the checklist reward
     signal is sufficient to improve instruction-following on a small scale.
+
+Judge batching (amortising costs):
+  - All P×G policy responses are collected before any judge call is submitted.
+  - All P×G judge futures are then submitted simultaneously so the Tinker
+    sampling server (backed by vLLM) can schedule one continuous batch — the
+    same principle as GeneralVerifier.verify_batch() in the General Reasoner.
+  - vLLM is not thread-safe; the Tinker client handles serialisation internally,
+    so callers just submit futures and await results.
+  - The judge model is loaded once at script start (frozen reference weights)
+    and reused for all batches — matching the General Reasoner's "load once" pattern.
 
 Variable naming convention (see CONTRIBUTING.md):
     _P: Problem dimension (different prompts in a batch)
@@ -115,6 +125,7 @@ class Config:
     judge_max_tokens: int = 16  # judge only needs to output a single integer
     n_judge_samples: int = 5  # paper uses 25; 5 is fast enough for prototype validation
     judge_temperature: float = 0.7  # mild variance so averaging across samples is meaningful
+    eval_n_examples: int = 200  # held-out eval size; same default as dpo_checklist.py
     dataset_seed: int = 42
     ttl_seconds: int | None = 604800  # 7 days
 
@@ -180,6 +191,58 @@ def _collect_reward(
     return sum(scores) / len(scores) if scores else 0.5
 
 
+def _score_eval_set(
+    eval_ds: "datasets.Dataset",
+    sampling_client: tinker.SamplingClient,
+    renderer: renderers.Renderer,
+    policy_params: types.SamplingParams,
+    judge_params: types.SamplingParams,
+    n_judge_samples: int,
+) -> float:
+    """Sample one response per eval instruction, score via judge, return mean.
+
+    Uses the same judge prompt and parameters as the training reward to ensure
+    the eval metric is directly comparable to `reward/mean` in the training loop
+    and to the `eval/checklist_score` produced by dpo_checklist.py.
+    """
+    policy_futures: list[Future[types.SampleResponse]] = []
+    for instruction in eval_ds["prompt"]:
+        model_input = renderer.build_generation_prompt(
+            [
+                {"role": "system", "content": _POLICY_SYSTEM_PROMPT},
+                {"role": "user", "content": instruction},
+            ]
+        )
+        policy_futures.append(
+            sampling_client.sample(
+                prompt=model_input,
+                num_samples=1,
+                sampling_params=policy_params,
+            )
+        )
+
+    scores: list[float] = []
+    for future, instruction, requirements in tqdm(
+        zip(policy_futures, eval_ds["prompt"], eval_ds["requirements"]),
+        total=len(policy_futures),
+        desc="Eval scoring",
+    ):
+        seq = future.result().sequences[0]
+        parsed_msg, _ = renderer.parse_response(seq.tokens)
+        response_text = renderers.get_text_content(parsed_msg)
+        judge_future = _submit_judge_future(
+            judge_client=sampling_client,
+            renderer=renderer,
+            instruction=instruction,
+            requirements=requirements,
+            response=response_text,
+            judge_params=judge_params,
+            n_samples=n_judge_samples,
+        )
+        scores.append(_collect_reward(judge_future, renderer))
+    return sum(scores) / len(scores) if scores else 0.0
+
+
 # ---------------------------------------------------------------------------
 # Main training loop
 # ---------------------------------------------------------------------------
@@ -199,15 +262,22 @@ def main(config: Config) -> None:
     renderer = renderers.get_renderer(renderer_name, tokenizer)
     logger.info(f"Using renderer: {renderer_name}")
 
-    # Load wildchecklists (51k WildChat conversations with pre-computed checklists).
-    # Columns used: `prompt` (user instruction) and `requirements` (checklist text).
-    # `chosen`/`rejected`/scores are ignored — we do online RL, not offline DPO.
+    # Load wildchecklists. Split 90/10 train/eval with the same seed as dpo_checklist.py
+    # so both scripts evaluate on the same held-out examples for direct comparison.
+    # Only `prompt` and `requirements` are used during training; `chosen`/`rejected`
+    # are ignored because we generate responses online via GRPO.
     logger.info("Loading viswavi/wildchecklists ...")
     raw_dataset = datasets.load_dataset("viswavi/wildchecklists", split="train")
     assert isinstance(raw_dataset, datasets.Dataset)
-    train_dataset = raw_dataset.shuffle(seed=config.dataset_seed)
+    split = raw_dataset.train_test_split(test_size=0.1, seed=config.dataset_seed)
+    train_dataset = split["train"].shuffle(seed=config.dataset_seed)
+    eval_dataset = split["test"].select(
+        range(min(config.eval_n_examples, len(split["test"])))
+    )
     n_train_batches = len(train_dataset) // config.batch_size
-    logger.info(f"Dataset: {len(train_dataset)} examples → {n_train_batches} batches")
+    logger.info(
+        f"Dataset: {len(train_dataset)} train, {len(eval_dataset)} eval → {n_train_batches} batches"
+    )
 
     service_client = tinker.ServiceClient(base_url=config.base_url)
 
@@ -242,6 +312,22 @@ def main(config: Config) -> None:
     adam_params = types.AdamParams(
         learning_rate=config.learning_rate, beta1=0.9, beta2=0.95, eps=1e-8
     )
+
+    # ------------------------------------------------------------------
+    # Baseline evaluation (base model before any GRPO training)
+    # ------------------------------------------------------------------
+    if start_batch == 0:
+        logger.info("Measuring baseline checklist score ...")
+        baseline_score = _score_eval_set(
+            eval_ds=eval_dataset,
+            sampling_client=judge_client,
+            renderer=renderer,
+            policy_params=policy_params,
+            judge_params=judge_params,
+            n_judge_samples=config.n_judge_samples,
+        )
+        ml_logger.log_metrics({"eval/checklist_score": baseline_score}, step=-1)
+        logger.info(f"Baseline checklist score: {baseline_score:.4f}")
 
     logger.info(f"Training for {n_train_batches} batches")
 
@@ -297,20 +383,30 @@ def main(config: Config) -> None:
             requirements_P.append(requirements)
 
         # ------------------------------------------------------------------
-        # Phase 2: Collect responses, score via fixed judge, build datums
+        # Phase 2a: Await all P policy futures and collect raw response data.
+        # We must await each future before submitting judge calls, but we
+        # collect *all* responses before submitting *any* judge call so that
+        # the full P×G batch hits the judge server in one shot.
         # ------------------------------------------------------------------
-        datums_D: list[types.Datum] = []
-        rewards_P: list[float] = []
-        n_skipped = 0
+
+        # Each entry: (prompt, tokens_G_T, logprobs_G_T, texts_G, instruction, requirements)
+        _ProblemData = tuple[
+            types.ModelInput,
+            list[list[int]],
+            list[list[float]],
+            list[str],
+            str,
+            str,
+        ]
+        problems_data: list[_ProblemData] = []
 
         for future, prompt, instruction, requirements in tqdm(
             zip(futures_P, prompts_P, instructions_P, requirements_P),
             total=len(futures_P),
-            desc=f"Batch {batch_idx}",
+            desc=f"Collecting responses batch {batch_idx}",
         ):
             sample_result = future.result()
 
-            # Collect G responses from the policy
             sampled_tokens_G_T: list[list[int]] = []
             logprobs_G_T: list[list[float]] = []
             response_texts_G: list[str] = []
@@ -327,30 +423,58 @@ def main(config: Config) -> None:
                 logprobs_G_T.append(sampled_logprobs)
                 response_texts_G.append(response_text)
 
-            # Submit G judge-scoring futures concurrently (one per response).
-            # Each call samples n_judge_samples outputs from the frozen judge
-            # and averages them — matching the paper's score-averaging strategy.
-            judge_futures_G: list[Future[types.SampleResponse]] = [
-                _submit_judge_future(
-                    judge_client=judge_client,
-                    renderer=renderer,
-                    instruction=instruction,
-                    requirements=requirements,
-                    response=response_text,
-                    judge_params=judge_params,
-                    n_samples=config.n_judge_samples,
-                )
-                for response_text in response_texts_G
-            ]
+            problems_data.append(
+                (prompt, sampled_tokens_G_T, logprobs_G_T, response_texts_G, instruction, requirements)
+            )
 
-            # Collect rewards (blocks until each judge call completes)
-            rewards_G = [_collect_reward(jf, renderer) for jf in judge_futures_G]
+        # ------------------------------------------------------------------
+        # Phase 2b: Submit ALL P×G judge futures simultaneously (true batch).
+        # The Tinker sampling client is backed by vLLM; submitting all futures
+        # before awaiting any lets vLLM schedule one continuous batch, the same
+        # principle as GeneralVerifier.verify_batch() in the General Reasoner.
+        # ------------------------------------------------------------------
+        judge_futures_flat: list[Future[types.SampleResponse]] = []
+        group_sizes: list[int] = []  # number of responses per problem (for regrouping)
+
+        for _, _, _, response_texts_G, instruction, requirements in problems_data:
+            group_sizes.append(len(response_texts_G))
+            for response_text in response_texts_G:
+                judge_futures_flat.append(
+                    _submit_judge_future(
+                        judge_client=judge_client,
+                        renderer=renderer,
+                        instruction=instruction,
+                        requirements=requirements,
+                        response=response_text,
+                        judge_params=judge_params,
+                        n_samples=config.n_judge_samples,
+                    )
+                )
+
+        # ------------------------------------------------------------------
+        # Phase 2c: Collect all P×G rewards (now the server can batch them).
+        # ------------------------------------------------------------------
+        all_rewards_flat = [_collect_reward(jf, renderer) for jf in judge_futures_flat]
+
+        # ------------------------------------------------------------------
+        # Phase 2d: Regroup per problem, compute advantages, build datums.
+        # ------------------------------------------------------------------
+        datums_D: list[types.Datum] = []
+        rewards_P: list[float] = []
+        n_skipped = 0
+        reward_idx = 0
+
+        for (prompt, sampled_tokens_G_T, logprobs_G_T, _, _, _), g_size in zip(
+            problems_data, group_sizes
+        ):
+            rewards_G = all_rewards_flat[reward_idx : reward_idx + g_size]
+            reward_idx += g_size
 
             mean_reward = sum(rewards_G) / len(rewards_G)
             advantages_G = [r - mean_reward for r in rewards_G]
             rewards_P.append(mean_reward)
 
-            # Skip groups where all responses are equally (un)rewarded — no gradient signal.
+            # Skip groups where all responses are equally rewarded — no gradient signal.
             if all(adv == 0.0 for adv in advantages_G):
                 n_skipped += 1
                 continue
@@ -423,6 +547,22 @@ def main(config: Config) -> None:
         )
         metrics["time/total"] = time.time() - t_start
         ml_logger.log_metrics(metrics, step=batch_idx)
+
+    # ------------------------------------------------------------------
+    # Post-training evaluation (same eval set, current policy weights)
+    # ------------------------------------------------------------------
+    logger.info("Measuring post-GRPO checklist score ...")
+    final_policy_client = training_client.save_weights_and_get_sampling_client()
+    post_score = _score_eval_set(
+        eval_ds=eval_dataset,
+        sampling_client=final_policy_client,
+        renderer=renderer,
+        policy_params=policy_params,
+        judge_params=judge_params,
+        n_judge_samples=config.n_judge_samples,
+    )
+    ml_logger.log_metrics({"eval/checklist_score": post_score}, step=n_train_batches)
+    logger.info(f"Post-GRPO checklist score: {post_score:.4f}")
 
     checkpoint_utils.save_checkpoint(
         training_client=training_client,
