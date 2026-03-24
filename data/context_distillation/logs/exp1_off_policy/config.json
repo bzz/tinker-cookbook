@@ -1,0 +1,36 @@
+{
+  "log_path": "data/context_distillation/logs/exp1_off_policy",
+  "model_name": "Qwen/Qwen3-30B-A3B",
+  "load_checkpoint_path": null,
+  "renderer_name": "qwen3_disable_thinking",
+  "dataset_builder": {
+    "common_config": {
+      "model_name_for_tokenizer": "Qwen/Qwen3-30B-A3B",
+      "renderer_name": "qwen3_disable_thinking",
+      "max_length": 32768,
+      "batch_size": 128,
+      "train_on_what": "all_assistant_messages"
+    },
+    "file_path": "data/context_distillation/off_policy_data.jsonl",
+    "test_size": 0,
+    "shuffle_seed": 0
+  },
+  "learning_rate": 0.0001,
+  "lr_schedule": "linear",
+  "num_epochs": 4,
+  "lora_rank": 32,
+  "base_url": null,
+  "evaluator_builders": [],
+  "infrequent_evaluator_builders": [],
+  "save_every": 10,
+  "eval_every": 5,
+  "infrequent_eval_every": 100,
+  "ttl_seconds": 604800,
+  "adam_beta1": 0.9,
+  "adam_beta2": 0.95,
+  "adam_eps": 1e-08,
+  "wandb_project": null,
+  "wandb_name": "prompt_distillation-Qwen-Qwen3-30B-A3B-32rank-0.0001lr-128batch-2026-03-16-15-27",
+  "enable_trace": false,
+  "max_steps": 30
+}

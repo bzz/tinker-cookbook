@@ -1,0 +1,1474 @@
+root:529 [INFO] Command line invocation: /workspace/tinker_cookbook/recipes/prompt_distillation/train_on_policy.py model_name=Qwen/Qwen3-30B-A3B renderer_name=qwen3_disable_thinking log_path=data/context_distillation/logs/exp2_on_policy gold_labels_path=data/context_distillation/gold_labels.json learning_rate=1e-4 lora_rank=32 groups_per_batch=32 group_size=4 max_tokens=50 temperature=1.0 kl_penalty_coef=1.0 eval_every=5 save_every=10 max_steps=30 behavior_if_log_dir_exists=delete
+tinker_cookbook.utils.ml_log:479 [INFO] Logging to: data/context_distillation/logs/exp2_on_policy
+tinker_cookbook.checkpoint_utils:257 [INFO] No checkpoints found at data/context_distillation/logs/exp2_on_policy/checkpoints.jsonl
+tinker_cookbook.checkpoint_utils:288 [INFO] No checkpoints found with key state_path in data/context_distillation/logs/exp2_on_policy
+tinker.lib.public_interfaces.service_client:75 [INFO] ServiceClient initialized for session 30c18da0-ee12-50a7-9330-15c505a2c44f
+tinker.lib.public_interfaces.service_client:159 [INFO] TrainingClient initialized for model 30c18da0-ee12-50a7-9330-15c505a2c44f:train:0
+__main__:556 [INFO] Data: 1680 train, 420 test sentences
+__main__:562 [INFO] Loaded 420 gold labels from data/context_distillation/gold_labels.json
+__main__:592 [INFO] Training for 30 steps
+tinker_cookbook.utils.misc_utils:20 [INFO] Starting save_checkpoint
+tinker_cookbook.utils.misc_utils:23 [INFO] save_checkpoint took 3.18 seconds
+tinker_cookbook.utils.misc_utils:20 [INFO] Starting run_evals
+tinker_cookbook.utils.misc_utils:23 [INFO] run_evals took 6.76 seconds
+tinker_cookbook.utils.misc_utils:20 [INFO] Starting sample
+tinker_cookbook.utils.misc_utils:23 [INFO] sample took 1.47 seconds
+tinker_cookbook.utils.misc_utils:20 [INFO] Starting assemble
+tinker_cookbook.utils.misc_utils:23 [INFO] assemble took 0.04 seconds
+__main__:652 [INFO] <|im_start|>user
+Classify the language of the provided text into one of these labels:
+ar, de, el, en, es, fr, hi, ru, tr, ur, vi, zh, ot.
+
+Respond with EXACTLY one line: "Final Answer: xx"
+
+Text to classify:
+وقال، ماما، لقد عدت للمنزل.<|im_end|>
+<|im_start|>assistant
+<think>
+
+</think>
+
+Final Answer: ar<|im_end|>
+tinker_cookbook.utils.misc_utils:20 [INFO] Starting kl_penalty
+tinker_cookbook.utils.misc_utils:23 [INFO] kl_penalty took 4.09 seconds
+tinker_cookbook.utils.misc_utils:20 [INFO] Starting train
+tinker_cookbook.utils.misc_utils:23 [INFO] train took 2.84 seconds
+tinker_cookbook.utils.misc_utils:20 [INFO] Starting compute_kl_sample_train
+tinker_cookbook.utils.misc_utils:23 [INFO] compute_kl_sample_train took 0.01 seconds
+tinker_cookbook.utils.misc_utils:20 [INFO] Starting save_checkpoint
+tinker_cookbook.utils.misc_utils:23 [INFO] save_checkpoint took 3.57 seconds
+tinker_cookbook.utils.ml_log:147 [INFO] Wrote metrics to data/context_distillation/logs/exp2_on_policy/metrics.jsonl
+tinker_cookbook.utils.ml_log:199 [INFO] 
+                    Step 0                     
+┏━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┳━━━━━━━━━━━━┓
+┃ Metric                         ┃ Value      ┃
+┡━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━╇━━━━━━━━━━━━┩
+│ optim/entropy                  │ 0.006549   │
+│ optim/kl_sample_train_v1       │ 0.002090   │
+│ optim/kl_sample_train_v2       │ 0.001088   │
+│ optim/lr                       │ 0.000100   │
+│ progress/batch                 │ 0          │
+│ progress/done_frac             │ 0.033333   │
+│ teacher_kl                     │ 0.051801   │
+│ test/accuracy                  │ 0.810000   │
+│ test/num_evaluated             │ 200.000000 │
+│ test/parse_rate                │ 0.840000   │
+│ time/assemble                  │ 0.043527   │
+│ time/compute_kl_sample_train   │ 0.007111   │
+│ time/kl_penalty                │ 4.093074   │
+│ time/run_evals                 │ 6.757440   │
+│ time/sample                    │ 1.469052   │
+│ time/save_checkpoint           │ 3.571496   │
+│ time/total                     │ 18.784522  │
+│ time/train                     │ 2.841757   │
+└────────────────────────────────┴────────────┘
+tinker_cookbook.utils.misc_utils:20 [INFO] Starting sample
+tinker_cookbook.utils.misc_utils:23 [INFO] sample took 6.68 seconds
+tinker_cookbook.utils.misc_utils:20 [INFO] Starting assemble
+tinker_cookbook.utils.misc_utils:23 [INFO] assemble took 0.03 seconds
+__main__:652 [INFO] <|im_start|>user
+Classify the language of the provided text into one of these labels:
+ar, de, el, en, es, fr, hi, ru, tr, ur, vi, zh, ot.
+
+Respond with EXACTLY one line: "Final Answer: xx"
+
+Text to classify:
+„Und ich dachte, das wäre ein Privileg, und das ist es immer noch, das ist esi mmer noch. Ich war der einzige 229 Ex-O, was mein AFCF Air Force-Karriere-Feld war.“<|im_end|>
+<|im_start|>assistant
+<think>
+
+</think>
+
+Final Answer: de<|im_end|>
+tinker_cookbook.utils.misc_utils:20 [INFO] Starting kl_penalty
+tinker_cookbook.utils.misc_utils:23 [INFO] kl_penalty took 2.98 seconds
+tinker_cookbook.utils.misc_utils:20 [INFO] Starting train
+tinker_cookbook.utils.misc_utils:23 [INFO] train took 4.13 seconds
+tinker_cookbook.utils.misc_utils:20 [INFO] Starting compute_kl_sample_train
+tinker_cookbook.utils.misc_utils:23 [INFO] compute_kl_sample_train took 0.01 seconds
+tinker_cookbook.utils.misc_utils:20 [INFO] Starting save_checkpoint
+tinker_cookbook.utils.misc_utils:23 [INFO] save_checkpoint took 3.61 seconds
+tinker_cookbook.utils.ml_log:147 [INFO] Wrote metrics to data/context_distillation/logs/exp2_on_policy/metrics.jsonl
+tinker_cookbook.utils.ml_log:199 [INFO] 
+                    Step 1                    
+┏━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┳━━━━━━━━━━━┓
+┃ Metric                         ┃ Value     ┃
+┡━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━╇━━━━━━━━━━━┩
+│ optim/entropy                  │ 0.003051  │
+│ optim/kl_sample_train_v1       │ -0.001092 │
+│ optim/kl_sample_train_v2       │ 0.000030  │
+│ optim/lr                       │ 0.000100  │
+│ progress/batch                 │ 1         │
+│ progress/done_frac             │ 0.066667  │
+│ teacher_kl                     │ 0.034578  │
+│ time/assemble                  │ 0.033432  │
+│ time/compute_kl_sample_train   │ 0.005915  │
+│ time/kl_penalty                │ 2.977918  │
+│ time/sample                    │ 6.680659  │
+│ time/save_checkpoint           │ 3.610445  │
+│ time/total                     │ 17.443765 │
+│ time/train                     │ 4.133274  │
+└────────────────────────────────┴───────────┘
+tinker_cookbook.utils.misc_utils:20 [INFO] Starting sample
+tinker_cookbook.utils.misc_utils:23 [INFO] sample took 6.54 seconds
+tinker_cookbook.utils.misc_utils:20 [INFO] Starting assemble
+tinker_cookbook.utils.misc_utils:23 [INFO] assemble took 0.03 seconds
+__main__:652 [INFO] <|im_start|>user
+Classify the language of the provided text into one of these labels:
+ar, de, el, en, es, fr, hi, ru, tr, ur, vi, zh, ot.
+
+Respond with EXACTLY one line: "Final Answer: xx"
+
+Text to classify:
+There's so much you could talk about on that I'll just skip that.<|im_end|>
+<|im_start|>assistant
+<think>
+
+</think>
+
+Final Answer: en<|im_end|>
+tinker_cookbook.utils.misc_utils:20 [INFO] Starting kl_penalty
+tinker_cookbook.utils.misc_utils:23 [INFO] kl_penalty took 2.92 seconds
+tinker_cookbook.utils.misc_utils:20 [INFO] Starting train
+tinker_cookbook.utils.misc_utils:23 [INFO] train took 3.10 seconds
+tinker_cookbook.utils.misc_utils:20 [INFO] Starting compute_kl_sample_train
+tinker_cookbook.utils.misc_utils:23 [INFO] compute_kl_sample_train took 0.01 seconds
+tinker_cookbook.utils.misc_utils:20 [INFO] Starting save_checkpoint
+tinker_cookbook.utils.misc_utils:23 [INFO] save_checkpoint took 3.22 seconds
+tinker_cookbook.utils.ml_log:147 [INFO] Wrote metrics to data/context_distillation/logs/exp2_on_policy/metrics.jsonl
+tinker_cookbook.utils.ml_log:199 [INFO] 
+                    Step 2                    
+┏━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┳━━━━━━━━━━━┓
+┃ Metric                         ┃ Value     ┃
+┡━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━╇━━━━━━━━━━━┩
+│ optim/entropy                  │ 0.008324  │
+│ optim/kl_sample_train_v1       │ 0.003159  │
+│ optim/kl_sample_train_v2       │ 0.000601  │
+│ optim/lr                       │ 0.000100  │
+│ progress/batch                 │ 2         │
+│ progress/done_frac             │ 0.100000  │
+│ teacher_kl                     │ 0.080509  │
+│ time/assemble                  │ 0.029371  │
+│ time/compute_kl_sample_train   │ 0.006322  │
+│ time/kl_penalty                │ 2.918547  │
+│ time/sample                    │ 6.535313  │
+│ time/save_checkpoint           │ 3.216998  │
+│ time/total                     │ 15.812457 │
+│ time/train                     │ 3.104080  │
+└────────────────────────────────┴───────────┘
+tinker_cookbook.utils.misc_utils:20 [INFO] Starting sample
+tinker_cookbook.utils.misc_utils:23 [INFO] sample took 6.20 seconds
+tinker_cookbook.utils.misc_utils:20 [INFO] Starting assemble
+tinker_cookbook.utils.misc_utils:23 [INFO] assemble took 0.18 seconds
+__main__:652 [INFO] <|im_start|>user
+Classify the language of the provided text into one of these labels:
+ar, de, el, en, es, fr, hi, ru, tr, ur, vi, zh, ot.
+
+Respond with EXACTLY one line: "Final Answer: xx"
+
+Text to classify:
+C'est la première chose que nous voulions sauver puisqu'il n'y avait aucun moyen de jeter une bombe H de 20 mégatonnes du haut d'un 30, un C124.<|im_end|>
+<|im_start|>assistant
+<think>
+
+</think>
+
+Final Answer: fr<|im_end|>
+tinker_cookbook.utils.misc_utils:20 [INFO] Starting kl_penalty
+tinker_cookbook.utils.misc_utils:23 [INFO] kl_penalty took 2.90 seconds
+tinker_cookbook.utils.misc_utils:20 [INFO] Starting train
+tinker_cookbook.utils.misc_utils:23 [INFO] train took 2.79 seconds
+tinker_cookbook.utils.misc_utils:20 [INFO] Starting compute_kl_sample_train
+tinker_cookbook.utils.misc_utils:23 [INFO] compute_kl_sample_train took 0.01 seconds
+tinker_cookbook.utils.misc_utils:20 [INFO] Starting save_checkpoint
+tinker_cookbook.utils.misc_utils:23 [INFO] save_checkpoint took 3.56 seconds
+tinker_cookbook.utils.ml_log:147 [INFO] Wrote metrics to data/context_distillation/logs/exp2_on_policy/metrics.jsonl
+tinker_cookbook.utils.ml_log:199 [INFO] 
+                    Step 3                    
+┏━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┳━━━━━━━━━━━┓
+┃ Metric                         ┃ Value     ┃
+┡━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━╇━━━━━━━━━━━┩
+│ optim/entropy                  │ 0.009610  │
+│ optim/kl_sample_train_v1       │ 0.001934  │
+│ optim/kl_sample_train_v2       │ 0.000601  │
+│ optim/lr                       │ 0.000100  │
+│ progress/batch                 │ 3         │
+│ progress/done_frac             │ 0.133333  │
+│ teacher_kl                     │ 0.076182  │
+│ time/assemble                  │ 0.178570  │
+│ time/compute_kl_sample_train   │ 0.005365  │
+│ time/kl_penalty                │ 2.900642  │
+│ time/sample                    │ 6.197689  │
+│ time/save_checkpoint           │ 3.556364  │
+│ time/total                     │ 15.634968 │
+│ time/train                     │ 2.794648  │
+└────────────────────────────────┴───────────┘
+tinker_cookbook.utils.misc_utils:20 [INFO] Starting sample
+tinker_cookbook.utils.misc_utils:23 [INFO] sample took 6.76 seconds
+tinker_cookbook.utils.misc_utils:20 [INFO] Starting assemble
+tinker_cookbook.utils.misc_utils:23 [INFO] assemble took 0.02 seconds
+__main__:652 [INFO] <|im_start|>user
+Classify the language of the provided text into one of these labels:
+ar, de, el, en, es, fr, hi, ru, tr, ur, vi, zh, ot.
+
+Respond with EXACTLY one line: "Final Answer: xx"
+
+Text to classify:
+А я говорю, типа, «ок», ну и все.<|im_end|>
+<|im_start|>assistant
+<think>
+
+</think>
+
+Final Answer: ru<|im_end|>
+tinker_cookbook.utils.misc_utils:20 [INFO] Starting kl_penalty
+tinker_cookbook.utils.misc_utils:23 [INFO] kl_penalty took 3.55 seconds
+tinker_cookbook.utils.misc_utils:20 [INFO] Starting train
+tinker_cookbook.utils.misc_utils:23 [INFO] train took 4.71 seconds
+tinker_cookbook.utils.misc_utils:20 [INFO] Starting compute_kl_sample_train
+tinker_cookbook.utils.misc_utils:23 [INFO] compute_kl_sample_train took 0.01 seconds
+tinker_cookbook.utils.misc_utils:20 [INFO] Starting save_checkpoint
+tinker_cookbook.utils.misc_utils:23 [INFO] save_checkpoint took 5.24 seconds
+tinker_cookbook.utils.ml_log:147 [INFO] Wrote metrics to data/context_distillation/logs/exp2_on_policy/metrics.jsonl
+tinker_cookbook.utils.ml_log:199 [INFO] 
+                    Step 4                    
+┏━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┳━━━━━━━━━━━┓
+┃ Metric                         ┃ Value     ┃
+┡━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━╇━━━━━━━━━━━┩
+│ optim/entropy                  │ 0.003188  │
+│ optim/kl_sample_train_v1       │ 0.000459  │
+│ optim/kl_sample_train_v2       │ 0.000085  │
+│ optim/lr                       │ 0.000100  │
+│ progress/batch                 │ 4         │
+│ progress/done_frac             │ 0.166667  │
+│ teacher_kl                     │ 0.022734  │
+│ time/assemble                  │ 0.024439  │
+│ time/compute_kl_sample_train   │ 0.005627  │
+│ time/kl_penalty                │ 3.554415  │
+│ time/sample                    │ 6.755434  │
+│ time/save_checkpoint           │ 5.237571  │
+│ time/total                     │ 20.292259 │
+│ time/train                     │ 4.713065  │
+└────────────────────────────────┴───────────┘
+tinker_cookbook.utils.misc_utils:20 [INFO] Starting run_evals
+tinker_cookbook.utils.misc_utils:23 [INFO] run_evals took 7.90 seconds
+tinker_cookbook.utils.misc_utils:20 [INFO] Starting sample
+tinker_cookbook.utils.misc_utils:23 [INFO] sample took 1.74 seconds
+tinker_cookbook.utils.misc_utils:20 [INFO] Starting assemble
+tinker_cookbook.utils.misc_utils:23 [INFO] assemble took 0.03 seconds
+__main__:652 [INFO] <|im_start|>user
+Classify the language of the provided text into one of these labels:
+ar, de, el, en, es, fr, hi, ru, tr, ur, vi, zh, ot.
+
+Respond with EXACTLY one line: "Final Answer: xx"
+
+Text to classify:
+ฉันก็แค่อยู่ที่นั่นเพื่อลองคิดเกี่ยวกับมัน<|im_end|>
+<|im_start|>assistant
+<think>
+
+</think>
+
+Final Answer: th<|im_end|>
+tinker_cookbook.utils.misc_utils:20 [INFO] Starting kl_penalty
+tinker_cookbook.utils.misc_utils:23 [INFO] kl_penalty took 3.24 seconds
+tinker_cookbook.utils.misc_utils:20 [INFO] Starting train
+tinker_cookbook.utils.misc_utils:23 [INFO] train took 2.84 seconds
+tinker_cookbook.utils.misc_utils:20 [INFO] Starting compute_kl_sample_train
+tinker_cookbook.utils.misc_utils:23 [INFO] compute_kl_sample_train took 0.01 seconds
+tinker_cookbook.utils.misc_utils:20 [INFO] Starting save_checkpoint
+tinker_cookbook.utils.misc_utils:23 [INFO] save_checkpoint took 3.02 seconds
+tinker_cookbook.utils.ml_log:147 [INFO] Wrote metrics to data/context_distillation/logs/exp2_on_policy/metrics.jsonl
+tinker_cookbook.utils.ml_log:199 [INFO] 
+                    Step 5                     
+┏━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┳━━━━━━━━━━━━┓
+┃ Metric                         ┃ Value      ┃
+┡━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━╇━━━━━━━━━━━━┩
+│ optim/entropy                  │ 0.017454   │
+│ optim/kl_sample_train_v1       │ 0.003848   │
+│ optim/kl_sample_train_v2       │ 0.002804   │
+│ optim/lr                       │ 0.000100   │
+│ progress/batch                 │ 5          │
+│ progress/done_frac             │ 0.200000   │
+│ teacher_kl                     │ 0.058910   │
+│ test/accuracy                  │ 0.845000   │
+│ test/num_evaluated             │ 200.000000 │
+│ test/parse_rate                │ 0.905000   │
+│ time/assemble                  │ 0.026318   │
+│ time/compute_kl_sample_train   │ 0.005313   │
+│ time/kl_penalty                │ 3.238674   │
+│ time/run_evals                 │ 7.898590   │
+│ time/sample                    │ 1.740576   │
+│ time/save_checkpoint           │ 3.022774   │
+│ time/total                     │ 18.772865  │
+│ time/train                     │ 2.839040   │
+└────────────────────────────────┴────────────┘
+tinker_cookbook.utils.misc_utils:20 [INFO] Starting sample
+tinker_cookbook.utils.misc_utils:23 [INFO] sample took 6.97 seconds
+tinker_cookbook.utils.misc_utils:20 [INFO] Starting assemble
+tinker_cookbook.utils.misc_utils:23 [INFO] assemble took 0.02 seconds
+__main__:652 [INFO] <|im_start|>user
+Classify the language of the provided text into one of these labels:
+ar, de, el, en, es, fr, hi, ru, tr, ur, vi, zh, ot.
+
+Respond with EXACTLY one line: "Final Answer: xx"
+
+Text to classify:
+چال یہ ہے کہ مجھے بستی کا نیا سردار کم اور ان دائیوں میں سے ایک زیادہ سمجھا جائے جنہیں  وان ٹریپ کے بچوں نے ماریہ سے پہلے مار ڈالا تھا۔<|im_end|>
+<|im_start|>assistant
+<think>
+
+</think>
+
+Final Answer: ur<|im_end|>
+tinker_cookbook.utils.misc_utils:20 [INFO] Starting kl_penalty
+tinker_cookbook.utils.misc_utils:23 [INFO] kl_penalty took 3.37 seconds
+tinker_cookbook.utils.misc_utils:20 [INFO] Starting train
+tinker_cookbook.utils.misc_utils:23 [INFO] train took 2.76 seconds
+tinker_cookbook.utils.misc_utils:20 [INFO] Starting compute_kl_sample_train
+tinker_cookbook.utils.misc_utils:23 [INFO] compute_kl_sample_train took 0.01 seconds
+tinker_cookbook.utils.misc_utils:20 [INFO] Starting save_checkpoint
+tinker_cookbook.utils.misc_utils:23 [INFO] save_checkpoint took 3.34 seconds
+tinker_cookbook.utils.ml_log:147 [INFO] Wrote metrics to data/context_distillation/logs/exp2_on_policy/metrics.jsonl
+tinker_cookbook.utils.ml_log:199 [INFO] 
+                    Step 6                    
+┏━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┳━━━━━━━━━━━┓
+┃ Metric                         ┃ Value     ┃
+┡━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━╇━━━━━━━━━━━┩
+│ optim/entropy                  │ 0.008268  │
+│ optim/kl_sample_train_v1       │ 0.003357  │
+│ optim/kl_sample_train_v2       │ 0.003576  │
+│ optim/lr                       │ 0.000100  │
+│ progress/batch                 │ 6         │
+│ progress/done_frac             │ 0.233333  │
+│ teacher_kl                     │ 0.007813  │
+│ time/assemble                  │ 0.023031  │
+│ time/compute_kl_sample_train   │ 0.005960  │
+│ time/kl_penalty                │ 3.370886  │
+│ time/sample                    │ 6.972830  │
+│ time/save_checkpoint           │ 3.337651  │
+│ time/total                     │ 16.471919 │
+│ time/train                     │ 2.760021  │
+└────────────────────────────────┴───────────┘
+tinker_cookbook.utils.misc_utils:20 [INFO] Starting sample
+tinker_cookbook.utils.misc_utils:23 [INFO] sample took 6.69 seconds
+tinker_cookbook.utils.misc_utils:20 [INFO] Starting assemble
+tinker_cookbook.utils.misc_utils:23 [INFO] assemble took 0.03 seconds
+__main__:652 [INFO] <|im_start|>user
+Classify the language of the provided text into one of these labels:
+ar, de, el, en, es, fr, hi, ru, tr, ur, vi, zh, ot.
+
+Respond with EXACTLY one line: "Final Answer: xx"
+
+Text to classify:
+我是唯一一个，呃，在微型的高度室里做测试一直运行调节器的人。<|im_end|>
+<|im_start|>assistant
+<think>
+
+</think>
+
+Final Answer: zh<|im_end|>
+tinker_cookbook.utils.misc_utils:20 [INFO] Starting kl_penalty
+tinker_cookbook.utils.misc_utils:23 [INFO] kl_penalty took 2.75 seconds
+tinker_cookbook.utils.misc_utils:20 [INFO] Starting train
+tinker_cookbook.utils.misc_utils:23 [INFO] train took 7.87 seconds
+tinker_cookbook.utils.misc_utils:20 [INFO] Starting compute_kl_sample_train
+tinker_cookbook.utils.misc_utils:23 [INFO] compute_kl_sample_train took 0.01 seconds
+tinker_cookbook.utils.misc_utils:20 [INFO] Starting save_checkpoint
+tinker_cookbook.utils.misc_utils:23 [INFO] save_checkpoint took 9.13 seconds
+tinker_cookbook.utils.ml_log:147 [INFO] Wrote metrics to data/context_distillation/logs/exp2_on_policy/metrics.jsonl
+tinker_cookbook.utils.ml_log:199 [INFO] 
+                    Step 7                    
+┏━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┳━━━━━━━━━━━┓
+┃ Metric                         ┃ Value     ┃
+┡━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━╇━━━━━━━━━━━┩
+│ optim/entropy                  │ 0.000651  │
+│ optim/kl_sample_train_v1       │ -0.000022 │
+│ optim/kl_sample_train_v2       │ 0.000000  │
+│ optim/lr                       │ 0.000100  │
+│ progress/batch                 │ 7         │
+│ progress/done_frac             │ 0.266667  │
+│ teacher_kl                     │ 0.013136  │
+│ time/assemble                  │ 0.027332  │
+│ time/compute_kl_sample_train   │ 0.006241  │
+│ time/kl_penalty                │ 2.747832  │
+│ time/sample                    │ 6.693851  │
+│ time/save_checkpoint           │ 9.131169  │
+│ time/total                     │ 26.479502 │
+│ time/train                     │ 7.871585  │
+└────────────────────────────────┴───────────┘
+tinker_cookbook.utils.misc_utils:20 [INFO] Starting sample
+tinker_cookbook.utils.misc_utils:23 [INFO] sample took 6.28 seconds
+tinker_cookbook.utils.misc_utils:20 [INFO] Starting assemble
+tinker_cookbook.utils.misc_utils:23 [INFO] assemble took 0.03 seconds
+__main__:652 [INFO] <|im_start|>user
+Classify the language of the provided text into one of these labels:
+ar, de, el, en, es, fr, hi, ru, tr, ur, vi, zh, ot.
+
+Respond with EXACTLY one line: "Final Answer: xx"
+
+Text to classify:
+Има някакви прогнози за паричните потоци на бюрото ми и, е, за някой си Cutty, това е името на клиента.<|im_end|>
+<|im_start|>assistant
+<think>
+
+</think>
+
+Final Answer: ru<|im_end|>
+tinker_cookbook.utils.misc_utils:20 [INFO] Starting kl_penalty
+tinker_cookbook.utils.misc_utils:23 [INFO] kl_penalty took 2.52 seconds
+tinker_cookbook.utils.misc_utils:20 [INFO] Starting train
+tinker_cookbook.utils.misc_utils:23 [INFO] train took 6.00 seconds
+tinker_cookbook.utils.misc_utils:20 [INFO] Starting compute_kl_sample_train
+tinker_cookbook.utils.misc_utils:23 [INFO] compute_kl_sample_train took 0.01 seconds
+tinker_cookbook.utils.misc_utils:20 [INFO] Starting save_checkpoint
+tinker_cookbook.utils.misc_utils:23 [INFO] save_checkpoint took 5.68 seconds
+tinker_cookbook.utils.ml_log:147 [INFO] Wrote metrics to data/context_distillation/logs/exp2_on_policy/metrics.jsonl
+tinker_cookbook.utils.ml_log:199 [INFO] 
+                    Step 8                    
+┏━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┳━━━━━━━━━━━┓
+┃ Metric                         ┃ Value     ┃
+┡━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━╇━━━━━━━━━━━┩
+│ optim/entropy                  │ 0.009172  │
+│ optim/kl_sample_train_v1       │ 0.000870  │
+│ optim/kl_sample_train_v2       │ 0.002984  │
+│ optim/lr                       │ 0.000100  │
+│ progress/batch                 │ 8         │
+│ progress/done_frac             │ 0.300000  │
+│ teacher_kl                     │ 0.116954  │
+│ time/assemble                  │ 0.026047  │
+│ time/compute_kl_sample_train   │ 0.005574  │
+│ time/kl_penalty                │ 2.520930  │
+│ time/sample                    │ 6.276203  │
+│ time/save_checkpoint           │ 5.680198  │
+│ time/total                     │ 20.506321 │
+│ time/train                     │ 5.995794  │
+└────────────────────────────────┴───────────┘
+tinker_cookbook.utils.misc_utils:20 [INFO] Starting sample
+tinker_cookbook.utils.misc_utils:23 [INFO] sample took 7.37 seconds
+tinker_cookbook.utils.misc_utils:20 [INFO] Starting assemble
+tinker_cookbook.utils.misc_utils:23 [INFO] assemble took 0.03 seconds
+__main__:652 [INFO] <|im_start|>user
+Classify the language of the provided text into one of these labels:
+ar, de, el, en, es, fr, hi, ru, tr, ur, vi, zh, ot.
+
+Respond with EXACTLY one line: "Final Answer: xx"
+
+Text to classify:
+Ο Michael Santo, της Firewell and Company, από το Μπάφαλο, της Νέα Υόρκης, ήταν εκείνος που, κατασκεύασε, αχμ.. εφηύρε τον υψηλό ρυθμιστή Ο2 πριν αναπτύξουν τον έλεγχο της φωτιάς στη σόμπα.<|im_end|>
+<|im_start|>assistant
+<think>
+
+</think>
+
+Final Answer: el<|im_end|>
+tinker_cookbook.utils.misc_utils:20 [INFO] Starting kl_penalty
+tinker_cookbook.utils.misc_utils:23 [INFO] kl_penalty took 2.95 seconds
+tinker_cookbook.utils.misc_utils:20 [INFO] Starting train
+tinker_cookbook.utils.misc_utils:23 [INFO] train took 2.85 seconds
+tinker_cookbook.utils.misc_utils:20 [INFO] Starting compute_kl_sample_train
+tinker_cookbook.utils.misc_utils:23 [INFO] compute_kl_sample_train took 0.01 seconds
+tinker_cookbook.utils.misc_utils:20 [INFO] Starting save_checkpoint
+tinker_cookbook.checkpoint_utils:326 [INFO] Saved checkpoints: {'state_path': 'tinker://30c18da0-ee12-50a7-9330-15c505a2c44f:train:0/weights/000010', 'sampler_path': 'tinker://30c18da0-ee12-50a7-9330-15c505a2c44f:train:0/sampler_weights/000010'}
+tinker_cookbook.utils.misc_utils:23 [INFO] save_checkpoint took 9.96 seconds
+tinker_cookbook.utils.ml_log:147 [INFO] Wrote metrics to data/context_distillation/logs/exp2_on_policy/metrics.jsonl
+tinker_cookbook.utils.ml_log:199 [INFO] 
+                    Step 9                    
+┏━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┳━━━━━━━━━━━┓
+┃ Metric                         ┃ Value     ┃
+┡━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━╇━━━━━━━━━━━┩
+│ optim/entropy                  │ 0.000887  │
+│ optim/kl_sample_train_v1       │ 0.000667  │
+│ optim/kl_sample_train_v2       │ 0.000034  │
+│ optim/lr                       │ 0.000100  │
+│ progress/batch                 │ 9         │
+│ progress/done_frac             │ 0.333333  │
+│ teacher_kl                     │ 0.133488  │
+│ time/assemble                  │ 0.027349  │
+│ time/compute_kl_sample_train   │ 0.006558  │
+│ time/kl_penalty                │ 2.947752  │
+│ time/sample                    │ 7.368067  │
+│ time/save_checkpoint           │ 9.959100  │
+│ time/total                     │ 23.158433 │
+│ time/train                     │ 2.847937  │
+└────────────────────────────────┴───────────┘
+tinker_cookbook.utils.misc_utils:20 [INFO] Starting run_evals
+tinker_cookbook.utils.misc_utils:23 [INFO] run_evals took 6.74 seconds
+tinker_cookbook.utils.misc_utils:20 [INFO] Starting sample
+tinker_cookbook.utils.misc_utils:23 [INFO] sample took 1.37 seconds
+tinker_cookbook.utils.misc_utils:20 [INFO] Starting assemble
+tinker_cookbook.utils.misc_utils:23 [INFO] assemble took 0.02 seconds
+__main__:652 [INFO] <|im_start|>user
+Classify the language of the provided text into one of these labels:
+ar, de, el, en, es, fr, hi, ru, tr, ur, vi, zh, ot.
+
+Respond with EXACTLY one line: "Final Answer: xx"
+
+Text to classify:
+Pero, ya sabes, él era, en muchos sentidos, como el hijo del dueño de una plantación porque era el hijo de este hombre que tenía muchas propiedades.<|im_end|>
+<|im_start|>assistant
+<think>
+
+</think>
+
+Final Answer: es<|im_end|>
+tinker_cookbook.utils.misc_utils:20 [INFO] Starting kl_penalty
+tinker_cookbook.utils.misc_utils:23 [INFO] kl_penalty took 2.63 seconds
+tinker_cookbook.utils.misc_utils:20 [INFO] Starting train
+tinker_cookbook.utils.misc_utils:23 [INFO] train took 2.90 seconds
+tinker_cookbook.utils.misc_utils:20 [INFO] Starting compute_kl_sample_train
+tinker_cookbook.utils.misc_utils:23 [INFO] compute_kl_sample_train took 0.01 seconds
+tinker_cookbook.utils.misc_utils:20 [INFO] Starting save_checkpoint
+tinker_cookbook.utils.misc_utils:23 [INFO] save_checkpoint took 2.95 seconds
+tinker_cookbook.utils.ml_log:147 [INFO] Wrote metrics to data/context_distillation/logs/exp2_on_policy/metrics.jsonl
+tinker_cookbook.utils.ml_log:199 [INFO] 
+                    Step 10                    
+┏━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┳━━━━━━━━━━━━┓
+┃ Metric                         ┃ Value      ┃
+┡━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━╇━━━━━━━━━━━━┩
+│ optim/entropy                  │ 0.001236   │
+│ optim/kl_sample_train_v1       │ -0.000215  │
+│ optim/kl_sample_train_v2       │ 0.000003   │
+│ optim/lr                       │ 0.000100   │
+│ progress/batch                 │ 10         │
+│ progress/done_frac             │ 0.366667   │
+│ teacher_kl                     │ 0.065013   │
+│ test/accuracy                  │ 0.840000   │
+│ test/num_evaluated             │ 200.000000 │
+│ test/parse_rate                │ 0.870000   │
+│ time/assemble                  │ 0.024380   │
+│ time/compute_kl_sample_train   │ 0.005323   │
+│ time/kl_penalty                │ 2.634716   │
+│ time/run_evals                 │ 6.742034   │
+│ time/sample                    │ 1.366813   │
+│ time/save_checkpoint           │ 2.951752   │
+│ time/total                     │ 16.627274  │
+│ time/train                     │ 2.900679   │
+└────────────────────────────────┴────────────┘
+tinker_cookbook.utils.misc_utils:20 [INFO] Starting sample
+tinker_cookbook.utils.misc_utils:23 [INFO] sample took 6.89 seconds
+tinker_cookbook.utils.misc_utils:20 [INFO] Starting assemble
+tinker_cookbook.utils.misc_utils:23 [INFO] assemble took 0.02 seconds
+__main__:652 [INFO] <|im_start|>user
+Classify the language of the provided text into one of these labels:
+ar, de, el, en, es, fr, hi, ru, tr, ur, vi, zh, ot.
+
+Respond with EXACTLY one line: "Final Answer: xx"
+
+Text to classify:
+मेरा मतलब है के उनके सिर्फ, जैसे कि, उनके पाँच बच्चे थे, उनमें से एक मर गया।<|im_end|>
+<|im_start|>assistant
+<think>
+
+</think>
+
+Final Answer: hi<|im_end|>
+tinker_cookbook.utils.misc_utils:20 [INFO] Starting kl_penalty
+tinker_cookbook.utils.misc_utils:23 [INFO] kl_penalty took 2.93 seconds
+tinker_cookbook.utils.misc_utils:20 [INFO] Starting train
+tinker_cookbook.utils.misc_utils:23 [INFO] train took 5.92 seconds
+tinker_cookbook.utils.misc_utils:20 [INFO] Starting compute_kl_sample_train
+tinker_cookbook.utils.misc_utils:23 [INFO] compute_kl_sample_train took 0.01 seconds
+tinker_cookbook.utils.misc_utils:20 [INFO] Starting save_checkpoint
+tinker_cookbook.utils.misc_utils:23 [INFO] save_checkpoint took 3.60 seconds
+tinker_cookbook.utils.ml_log:147 [INFO] Wrote metrics to data/context_distillation/logs/exp2_on_policy/metrics.jsonl
+tinker_cookbook.utils.ml_log:199 [INFO] 
+                   Step 11                    
+┏━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┳━━━━━━━━━━━┓
+┃ Metric                         ┃ Value     ┃
+┡━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━╇━━━━━━━━━━━┩
+│ optim/entropy                  │ 0.000439  │
+│ optim/kl_sample_train_v1       │ -0.000121 │
+│ optim/kl_sample_train_v2       │ 0.000004  │
+│ optim/lr                       │ 0.000100  │
+│ progress/batch                 │ 11        │
+│ progress/done_frac             │ 0.400000  │
+│ teacher_kl                     │ 0.050221  │
+│ time/assemble                  │ 0.024786  │
+│ time/compute_kl_sample_train   │ 0.006083  │
+│ time/kl_penalty                │ 2.925846  │
+│ time/sample                    │ 6.891040  │
+│ time/save_checkpoint           │ 3.596699  │
+│ time/total                     │ 19.370522 │
+│ time/train                     │ 5.924457  │
+└────────────────────────────────┴───────────┘
+tinker_cookbook.utils.misc_utils:20 [INFO] Starting sample
+tinker_cookbook.utils.misc_utils:23 [INFO] sample took 8.04 seconds
+tinker_cookbook.utils.misc_utils:20 [INFO] Starting assemble
+tinker_cookbook.utils.misc_utils:23 [INFO] assemble took 0.02 seconds
+__main__:652 [INFO] <|im_start|>user
+Classify the language of the provided text into one of these labels:
+ar, de, el, en, es, fr, hi, ru, tr, ur, vi, zh, ot.
+
+Respond with EXACTLY one line: "Final Answer: xx"
+
+Text to classify:
+Alisema kwamba machozi ylikuwa yanamtiririka kutoka usoni. Alafu akasema pia Joe alishuka kutoka ukumbini.<|im_end|>
+<|im_start|>assistant
+<think>
+
+</think>
+
+Final Answer: sw<|im_end|>
+tinker_cookbook.utils.misc_utils:20 [INFO] Starting kl_penalty
+tinker_cookbook.utils.misc_utils:23 [INFO] kl_penalty took 2.71 seconds
+tinker_cookbook.utils.misc_utils:20 [INFO] Starting train
+tinker_cookbook.utils.misc_utils:23 [INFO] train took 3.08 seconds
+tinker_cookbook.utils.misc_utils:20 [INFO] Starting compute_kl_sample_train
+tinker_cookbook.utils.misc_utils:23 [INFO] compute_kl_sample_train took 0.01 seconds
+tinker_cookbook.utils.misc_utils:20 [INFO] Starting save_checkpoint
+tinker_cookbook.utils.misc_utils:23 [INFO] save_checkpoint took 3.28 seconds
+tinker_cookbook.utils.ml_log:147 [INFO] Wrote metrics to data/context_distillation/logs/exp2_on_policy/metrics.jsonl
+tinker_cookbook.utils.ml_log:199 [INFO] 
+                   Step 12                    
+┏━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┳━━━━━━━━━━━┓
+┃ Metric                         ┃ Value     ┃
+┡━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━╇━━━━━━━━━━━┩
+│ optim/entropy                  │ 0.000220  │
+│ optim/kl_sample_train_v1       │ -0.000022 │
+│ optim/kl_sample_train_v2       │ 0.000000  │
+│ optim/lr                       │ 0.000100  │
+│ progress/batch                 │ 12        │
+│ progress/done_frac             │ 0.433333  │
+│ teacher_kl                     │ 0.012237  │
+│ time/assemble                  │ 0.025006  │
+│ time/compute_kl_sample_train   │ 0.006300  │
+│ time/kl_penalty                │ 2.706935  │
+│ time/sample                    │ 8.035770  │
+│ time/save_checkpoint           │ 3.276549  │
+│ time/total                     │ 17.130735 │
+│ time/train                     │ 3.078727  │
+└────────────────────────────────┴───────────┘
+tinker_cookbook.utils.misc_utils:20 [INFO] Starting sample
+tinker_cookbook.utils.misc_utils:23 [INFO] sample took 7.05 seconds
+tinker_cookbook.utils.misc_utils:20 [INFO] Starting assemble
+tinker_cookbook.utils.misc_utils:23 [INFO] assemble took 0.02 seconds
+__main__:652 [INFO] <|im_start|>user
+Classify the language of the provided text into one of these labels:
+ar, de, el, en, es, fr, hi, ru, tr, ur, vi, zh, ot.
+
+Respond with EXACTLY one line: "Final Answer: xx"
+
+Text to classify:
+Ama benim işim onu yüklediğimizde ve denizaşırı bir konuma gitmek üzere yola çıktığımızda onun üzerine paraşütleri ve can yeleklerini koymaktı.<|im_end|>
+<|im_start|>assistant
+<think>
+
+</think>
+
+Final Answer: tr<|im_end|>
+tinker_cookbook.utils.misc_utils:20 [INFO] Starting kl_penalty
+tinker_cookbook.utils.misc_utils:23 [INFO] kl_penalty took 3.15 seconds
+tinker_cookbook.utils.misc_utils:20 [INFO] Starting train
+tinker_cookbook.utils.misc_utils:23 [INFO] train took 3.15 seconds
+tinker_cookbook.utils.misc_utils:20 [INFO] Starting compute_kl_sample_train
+tinker_cookbook.utils.misc_utils:23 [INFO] compute_kl_sample_train took 0.01 seconds
+tinker_cookbook.utils.misc_utils:20 [INFO] Starting save_checkpoint
+tinker_cookbook.utils.misc_utils:23 [INFO] save_checkpoint took 3.52 seconds
+tinker_cookbook.utils.ml_log:147 [INFO] Wrote metrics to data/context_distillation/logs/exp2_on_policy/metrics.jsonl
+tinker_cookbook.utils.ml_log:199 [INFO] 
+                   Step 13                    
+┏━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┳━━━━━━━━━━━┓
+┃ Metric                         ┃ Value     ┃
+┡━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━╇━━━━━━━━━━━┩
+│ optim/entropy                  │ 0.000288  │
+│ optim/kl_sample_train_v1       │ -0.000126 │
+│ optim/kl_sample_train_v2       │ 0.000001  │
+│ optim/lr                       │ 0.000100  │
+│ progress/batch                 │ 13        │
+│ progress/done_frac             │ 0.466667  │
+│ teacher_kl                     │ 0.024363  │
+│ time/assemble                  │ 0.023209  │
+│ time/compute_kl_sample_train   │ 0.005897  │
+│ time/kl_penalty                │ 3.148017  │
+│ time/sample                    │ 7.049333  │
+│ time/save_checkpoint           │ 3.524188  │
+│ time/total                     │ 16.899886 │
+│ time/train                     │ 3.147658  │
+└────────────────────────────────┴───────────┘
+tinker_cookbook.utils.misc_utils:20 [INFO] Starting sample
+tinker_cookbook.utils.misc_utils:23 [INFO] sample took 7.30 seconds
+tinker_cookbook.utils.misc_utils:20 [INFO] Starting assemble
+tinker_cookbook.utils.misc_utils:23 [INFO] assemble took 0.02 seconds
+__main__:652 [INFO] <|im_start|>user
+Classify the language of the provided text into one of these labels:
+ar, de, el, en, es, fr, hi, ru, tr, ur, vi, zh, ot.
+
+Respond with EXACTLY one line: "Final Answer: xx"
+
+Text to classify:
+Đây là Trung sĩ trưởng Clem Francis, đã nghỉ hưu từ Không quân Hoa Kỳ.<|im_end|>
+<|im_start|>assistant
+<think>
+
+</think>
+
+Final Answer: vi<|im_end|>
+tinker_cookbook.utils.misc_utils:20 [INFO] Starting kl_penalty
+tinker_cookbook.utils.misc_utils:23 [INFO] kl_penalty took 3.30 seconds
+tinker_cookbook.utils.misc_utils:20 [INFO] Starting train
+tinker_cookbook.utils.misc_utils:23 [INFO] train took 4.58 seconds
+tinker_cookbook.utils.misc_utils:20 [INFO] Starting compute_kl_sample_train
+tinker_cookbook.utils.misc_utils:23 [INFO] compute_kl_sample_train took 0.01 seconds
+tinker_cookbook.utils.misc_utils:20 [INFO] Starting save_checkpoint
+tinker_cookbook.utils.misc_utils:23 [INFO] save_checkpoint took 3.36 seconds
+tinker_cookbook.utils.ml_log:147 [INFO] Wrote metrics to data/context_distillation/logs/exp2_on_policy/metrics.jsonl
+tinker_cookbook.utils.ml_log:199 [INFO] 
+                   Step 14                    
+┏━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┳━━━━━━━━━━━┓
+┃ Metric                         ┃ Value     ┃
+┡━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━╇━━━━━━━━━━━┩
+│ optim/entropy                  │ 0.000607  │
+│ optim/kl_sample_train_v1       │ -0.000105 │
+│ optim/kl_sample_train_v2       │ 0.000004  │
+│ optim/lr                       │ 0.000100  │
+│ progress/batch                 │ 14        │
+│ progress/done_frac             │ 0.500000  │
+│ teacher_kl                     │ 0.006959  │
+│ time/assemble                  │ 0.024235  │
+│ time/compute_kl_sample_train   │ 0.009534  │
+│ time/kl_penalty                │ 3.299254  │
+│ time/sample                    │ 7.304275  │
+│ time/save_checkpoint           │ 3.356451  │
+│ time/total                     │ 18.575873 │
+│ time/train                     │ 4.580523  │
+└────────────────────────────────┴───────────┘
+tinker_cookbook.utils.misc_utils:20 [INFO] Starting run_evals
+tinker_cookbook.utils.misc_utils:23 [INFO] run_evals took 7.69 seconds
+tinker_cookbook.utils.misc_utils:20 [INFO] Starting sample
+tinker_cookbook.utils.misc_utils:23 [INFO] sample took 2.51 seconds
+tinker_cookbook.utils.misc_utils:20 [INFO] Starting assemble
+tinker_cookbook.utils.misc_utils:23 [INFO] assemble took 0.03 seconds
+__main__:652 [INFO] <|im_start|>user
+Classify the language of the provided text into one of these labels:
+ar, de, el, en, es, fr, hi, ru, tr, ur, vi, zh, ot.
+
+Respond with EXACTLY one line: "Final Answer: xx"
+
+Text to classify:
+وكان زير نساء ، و نعم ، وكان كأنه في الخارج هناك . و، آه ، هكذا ، أن تعرف ، لم أحبه ، لكن على أية حال تلك هي حكاياتي.<|im_end|>
+<|im_start|>assistant
+<think>
+
+</think>
+
+Final Answer: ar<|im_end|>
+tinker_cookbook.utils.misc_utils:20 [INFO] Starting kl_penalty
+tinker_cookbook.utils.misc_utils:23 [INFO] kl_penalty took 2.52 seconds
+tinker_cookbook.utils.misc_utils:20 [INFO] Starting train
+tinker_cookbook.utils.misc_utils:23 [INFO] train took 3.02 seconds
+tinker_cookbook.utils.misc_utils:20 [INFO] Starting compute_kl_sample_train
+tinker_cookbook.utils.misc_utils:23 [INFO] compute_kl_sample_train took 0.01 seconds
+tinker_cookbook.utils.misc_utils:20 [INFO] Starting save_checkpoint
+tinker_cookbook.utils.misc_utils:23 [INFO] save_checkpoint took 3.28 seconds
+tinker_cookbook.utils.ml_log:147 [INFO] Wrote metrics to data/context_distillation/logs/exp2_on_policy/metrics.jsonl
+tinker_cookbook.utils.ml_log:199 [INFO] 
+                    Step 15                    
+┏━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┳━━━━━━━━━━━━┓
+┃ Metric                         ┃ Value      ┃
+┡━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━╇━━━━━━━━━━━━┩
+│ optim/entropy                  │ 0.000457   │
+│ optim/kl_sample_train_v1       │ -0.000208  │
+│ optim/kl_sample_train_v2       │ 0.000004   │
+│ optim/lr                       │ 0.000100   │
+│ progress/batch                 │ 15         │
+│ progress/done_frac             │ 0.533333   │
+│ teacher_kl                     │ 0.003731   │
+│ test/accuracy                  │ 0.845000   │
+│ test/num_evaluated             │ 200.000000 │
+│ test/parse_rate                │ 0.875000   │
+│ time/assemble                  │ 0.025669   │
+│ time/compute_kl_sample_train   │ 0.008128   │
+│ time/kl_penalty                │ 2.521029   │
+│ time/run_evals                 │ 7.690153   │
+│ time/sample                    │ 2.510955   │
+│ time/save_checkpoint           │ 3.280823   │
+│ time/total                     │ 19.060177  │
+│ time/train                     │ 3.021769   │
+└────────────────────────────────┴────────────┘
+tinker_cookbook.utils.misc_utils:20 [INFO] Starting sample
+tinker_cookbook.utils.misc_utils:23 [INFO] sample took 6.50 seconds
+tinker_cookbook.utils.misc_utils:20 [INFO] Starting assemble
+tinker_cookbook.utils.misc_utils:23 [INFO] assemble took 0.03 seconds
+__main__:652 [INFO] <|im_start|>user
+Classify the language of the provided text into one of these labels:
+ar, de, el, en, es, fr, hi, ru, tr, ur, vi, zh, ot.
+
+Respond with EXACTLY one line: "Final Answer: xx"
+
+Text to classify:
+Und sie hat es nicht wirklich verstanden.<|im_end|>
+<|im_start|>assistant
+<think>
+
+</think>
+
+Final Answer: de<|im_end|>
+tinker_cookbook.utils.misc_utils:20 [INFO] Starting kl_penalty
+tinker_cookbook.utils.misc_utils:23 [INFO] kl_penalty took 3.43 seconds
+tinker_cookbook.utils.misc_utils:20 [INFO] Starting train
+tinker_cookbook.utils.misc_utils:23 [INFO] train took 2.85 seconds
+tinker_cookbook.utils.misc_utils:20 [INFO] Starting compute_kl_sample_train
+tinker_cookbook.utils.misc_utils:23 [INFO] compute_kl_sample_train took 0.01 seconds
+tinker_cookbook.utils.misc_utils:20 [INFO] Starting save_checkpoint
+tinker_cookbook.utils.misc_utils:23 [INFO] save_checkpoint took 3.60 seconds
+tinker_cookbook.utils.ml_log:147 [INFO] Wrote metrics to data/context_distillation/logs/exp2_on_policy/metrics.jsonl
+tinker_cookbook.utils.ml_log:199 [INFO] 
+                   Step 16                    
+┏━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┳━━━━━━━━━━━┓
+┃ Metric                         ┃ Value     ┃
+┡━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━╇━━━━━━━━━━━┩
+│ optim/entropy                  │ 0.000851  │
+│ optim/kl_sample_train_v1       │ -0.000388 │
+│ optim/kl_sample_train_v2       │ 0.000010  │
+│ optim/lr                       │ 0.000100  │
+│ progress/batch                 │ 16        │
+│ progress/done_frac             │ 0.566667  │
+│ teacher_kl                     │ 0.014382  │
+│ time/assemble                  │ 0.025762  │
+│ time/compute_kl_sample_train   │ 0.006277  │
+│ time/kl_penalty                │ 3.428542  │
+│ time/sample                    │ 6.497372  │
+│ time/save_checkpoint           │ 3.599366  │
+│ time/total                     │ 16.406269 │
+│ time/train                     │ 2.847088  │
+└────────────────────────────────┴───────────┘
+tinker_cookbook.utils.misc_utils:20 [INFO] Starting sample
+tinker_cookbook.utils.misc_utils:23 [INFO] sample took 6.99 seconds
+tinker_cookbook.utils.misc_utils:20 [INFO] Starting assemble
+tinker_cookbook.utils.misc_utils:23 [INFO] assemble took 0.02 seconds
+__main__:652 [INFO] <|im_start|>user
+Classify the language of the provided text into one of these labels:
+ar, de, el, en, es, fr, hi, ru, tr, ur, vi, zh, ot.
+
+Respond with EXACTLY one line: "Final Answer: xx"
+
+Text to classify:
+And how about it looks like exactly what I'm trying to do.<|im_end|>
+<|im_start|>assistant
+<think>
+
+</think>
+
+Final Answer: en<|im_end|>
+tinker_cookbook.utils.misc_utils:20 [INFO] Starting kl_penalty
+tinker_cookbook.utils.misc_utils:23 [INFO] kl_penalty took 4.30 seconds
+tinker_cookbook.utils.misc_utils:20 [INFO] Starting train
+tinker_cookbook.utils.misc_utils:23 [INFO] train took 4.68 seconds
+tinker_cookbook.utils.misc_utils:20 [INFO] Starting compute_kl_sample_train
+tinker_cookbook.utils.misc_utils:23 [INFO] compute_kl_sample_train took 0.01 seconds
+tinker_cookbook.utils.misc_utils:20 [INFO] Starting save_checkpoint
+tinker_cookbook.utils.misc_utils:23 [INFO] save_checkpoint took 3.24 seconds
+tinker_cookbook.utils.ml_log:147 [INFO] Wrote metrics to data/context_distillation/logs/exp2_on_policy/metrics.jsonl
+tinker_cookbook.utils.ml_log:199 [INFO] 
+                   Step 17                    
+┏━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┳━━━━━━━━━━━┓
+┃ Metric                         ┃ Value     ┃
+┡━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━╇━━━━━━━━━━━┩
+│ optim/entropy                  │ 0.006482  │
+│ optim/kl_sample_train_v1       │ 0.000944  │
+│ optim/kl_sample_train_v2       │ 0.000242  │
+│ optim/lr                       │ 0.000100  │
+│ progress/batch                 │ 17        │
+│ progress/done_frac             │ 0.600000  │
+│ teacher_kl                     │ 0.026404  │
+│ time/assemble                  │ 0.024427  │
+│ time/compute_kl_sample_train   │ 0.009127  │
+│ time/kl_penalty                │ 4.298163  │
+│ time/sample                    │ 6.991220  │
+│ time/save_checkpoint           │ 3.238911  │
+│ time/total                     │ 19.248256 │
+│ time/train                     │ 4.684664  │
+└────────────────────────────────┴───────────┘
+tinker_cookbook.utils.misc_utils:20 [INFO] Starting sample
+tinker_cookbook.utils.misc_utils:23 [INFO] sample took 6.84 seconds
+tinker_cookbook.utils.misc_utils:20 [INFO] Starting assemble
+tinker_cookbook.utils.misc_utils:23 [INFO] assemble took 0.03 seconds
+__main__:652 [INFO] <|im_start|>user
+Classify the language of the provided text into one of these labels:
+ar, de, el, en, es, fr, hi, ru, tr, ur, vi, zh, ot.
+
+Respond with EXACTLY one line: "Final Answer: xx"
+
+Text to classify:
+Peut-être qu'elle l'a dit à tous les autres et que je ne faisais pas attention à ce moment précis.<|im_end|>
+<|im_start|>assistant
+<think>
+
+</think>
+
+Final Answer: fr<|im_end|>
+tinker_cookbook.utils.misc_utils:20 [INFO] Starting kl_penalty
+tinker_cookbook.utils.misc_utils:23 [INFO] kl_penalty took 2.53 seconds
+tinker_cookbook.utils.misc_utils:20 [INFO] Starting train
+tinker_cookbook.utils.misc_utils:23 [INFO] train took 2.83 seconds
+tinker_cookbook.utils.misc_utils:20 [INFO] Starting compute_kl_sample_train
+tinker_cookbook.utils.misc_utils:23 [INFO] compute_kl_sample_train took 0.01 seconds
+tinker_cookbook.utils.misc_utils:20 [INFO] Starting save_checkpoint
+tinker_cookbook.utils.misc_utils:23 [INFO] save_checkpoint took 3.01 seconds
+tinker_cookbook.utils.ml_log:147 [INFO] Wrote metrics to data/context_distillation/logs/exp2_on_policy/metrics.jsonl
+tinker_cookbook.utils.ml_log:199 [INFO] 
+                   Step 18                    
+┏━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┳━━━━━━━━━━━┓
+┃ Metric                         ┃ Value     ┃
+┡━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━╇━━━━━━━━━━━┩
+│ optim/entropy                  │ 0.012335  │
+│ optim/kl_sample_train_v1       │ 0.004670  │
+│ optim/kl_sample_train_v2       │ 0.005790  │
+│ optim/lr                       │ 0.000100  │
+│ progress/batch                 │ 18        │
+│ progress/done_frac             │ 0.633333  │
+│ teacher_kl                     │ 0.086130  │
+│ time/assemble                  │ 0.027368  │
+│ time/compute_kl_sample_train   │ 0.005884  │
+│ time/kl_penalty                │ 2.528067  │
+│ time/sample                    │ 6.839235  │
+│ time/save_checkpoint           │ 3.012226  │
+│ time/total                     │ 15.248401 │
+│ time/train                     │ 2.833638  │
+└────────────────────────────────┴───────────┘
+tinker_cookbook.utils.misc_utils:20 [INFO] Starting sample
+tinker_cookbook.utils.misc_utils:23 [INFO] sample took 6.43 seconds
+tinker_cookbook.utils.misc_utils:20 [INFO] Starting assemble
+tinker_cookbook.utils.misc_utils:23 [INFO] assemble took 0.02 seconds
+__main__:652 [INFO] <|im_start|>user
+Classify the language of the provided text into one of these labels:
+ar, de, el, en, es, fr, hi, ru, tr, ur, vi, zh, ot.
+
+Respond with EXACTLY one line: "Final Answer: xx"
+
+Text to classify:
+Мы потеряли всего пару-тройку самолетов пока там были... ну, этот - как его? - этап испытаний.<|im_end|>
+<|im_start|>assistant
+<think>
+
+</think>
+
+Final Answer: ru<|im_end|>
+tinker_cookbook.utils.misc_utils:20 [INFO] Starting kl_penalty
+tinker_cookbook.utils.misc_utils:23 [INFO] kl_penalty took 2.79 seconds
+tinker_cookbook.utils.misc_utils:20 [INFO] Starting train
+tinker_cookbook.utils.misc_utils:23 [INFO] train took 2.75 seconds
+tinker_cookbook.utils.misc_utils:20 [INFO] Starting compute_kl_sample_train
+tinker_cookbook.utils.misc_utils:23 [INFO] compute_kl_sample_train took 0.01 seconds
+tinker_cookbook.utils.misc_utils:20 [INFO] Starting save_checkpoint
+tinker_cookbook.checkpoint_utils:326 [INFO] Saved checkpoints: {'state_path': 'tinker://30c18da0-ee12-50a7-9330-15c505a2c44f:train:0/weights/000020', 'sampler_path': 'tinker://30c18da0-ee12-50a7-9330-15c505a2c44f:train:0/sampler_weights/000020'}
+tinker_cookbook.utils.misc_utils:23 [INFO] save_checkpoint took 10.82 seconds
+tinker_cookbook.utils.ml_log:147 [INFO] Wrote metrics to data/context_distillation/logs/exp2_on_policy/metrics.jsonl
+tinker_cookbook.utils.ml_log:199 [INFO] 
+                   Step 19                    
+┏━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┳━━━━━━━━━━━┓
+┃ Metric                         ┃ Value     ┃
+┡━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━╇━━━━━━━━━━━┩
+│ optim/entropy                  │ 0.013157  │
+│ optim/kl_sample_train_v1       │ -0.002419 │
+│ optim/kl_sample_train_v2       │ 0.000778  │
+│ optim/lr                       │ 0.000100  │
+│ progress/batch                 │ 19        │
+│ progress/done_frac             │ 0.666667  │
+│ teacher_kl                     │ 0.074641  │
+│ time/assemble                  │ 0.024794  │
+│ time/compute_kl_sample_train   │ 0.006284  │
+│ time/kl_penalty                │ 2.788401  │
+│ time/sample                    │ 6.432847  │
+│ time/save_checkpoint           │ 10.817872 │
+│ time/total                     │ 22.821916 │
+│ time/train                     │ 2.749963  │
+└────────────────────────────────┴───────────┘
+tinker_cookbook.utils.misc_utils:20 [INFO] Starting run_evals
+tinker_cookbook.utils.misc_utils:23 [INFO] run_evals took 7.85 seconds
+tinker_cookbook.utils.misc_utils:20 [INFO] Starting sample
+tinker_cookbook.utils.misc_utils:23 [INFO] sample took 2.06 seconds
+tinker_cookbook.utils.misc_utils:20 [INFO] Starting assemble
+tinker_cookbook.utils.misc_utils:23 [INFO] assemble took 0.03 seconds
+__main__:652 [INFO] <|im_start|>user
+Classify the language of the provided text into one of these labels:
+ar, de, el, en, es, fr, hi, ru, tr, ur, vi, zh, ot.
+
+Respond with EXACTLY one line: "Final Answer: xx"
+
+Text to classify:
+ดังนั้นฉันจึงต้องเอาผลรวมพวกนั้นและพยายามและก็คำนวนมันแบบนั้น<|im_end|>
+<|im_start|>assistant
+<think>
+
+</think>
+
+Final Answer: th<|im_end|>
+tinker_cookbook.utils.misc_utils:20 [INFO] Starting kl_penalty
+tinker_cookbook.utils.misc_utils:23 [INFO] kl_penalty took 2.95 seconds
+tinker_cookbook.utils.misc_utils:20 [INFO] Starting train
+tinker_cookbook.utils.misc_utils:23 [INFO] train took 3.38 seconds
+tinker_cookbook.utils.misc_utils:20 [INFO] Starting compute_kl_sample_train
+tinker_cookbook.utils.misc_utils:23 [INFO] compute_kl_sample_train took 0.01 seconds
+tinker_cookbook.utils.misc_utils:20 [INFO] Starting save_checkpoint
+tinker_cookbook.utils.misc_utils:23 [INFO] save_checkpoint took 3.21 seconds
+tinker_cookbook.utils.ml_log:147 [INFO] Wrote metrics to data/context_distillation/logs/exp2_on_policy/metrics.jsonl
+tinker_cookbook.utils.ml_log:199 [INFO] 
+                    Step 20                    
+┏━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┳━━━━━━━━━━━━┓
+┃ Metric                         ┃ Value      ┃
+┡━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━╇━━━━━━━━━━━━┩
+│ optim/entropy                  │ 0.008150   │
+│ optim/kl_sample_train_v1       │ 0.000241   │
+│ optim/kl_sample_train_v2       │ 0.000059   │
+│ optim/lr                       │ 0.000100   │
+│ progress/batch                 │ 20         │
+│ progress/done_frac             │ 0.700000   │
+│ teacher_kl                     │ 0.021247   │
+│ test/accuracy                  │ 0.845000   │
+│ test/num_evaluated             │ 200.000000 │
+│ test/parse_rate                │ 0.870000   │
+│ time/assemble                  │ 0.025748   │
+│ time/compute_kl_sample_train   │ 0.006484   │
+│ time/kl_penalty                │ 2.954956   │
+│ time/run_evals                 │ 7.847819   │
+│ time/sample                    │ 2.056760   │
+│ time/save_checkpoint           │ 3.208951   │
+│ time/total                     │ 19.482310  │
+│ time/train                     │ 3.379907   │
+└────────────────────────────────┴────────────┘
+tinker_cookbook.utils.misc_utils:20 [INFO] Starting sample
+tinker_cookbook.utils.misc_utils:23 [INFO] sample took 6.87 seconds
+tinker_cookbook.utils.misc_utils:20 [INFO] Starting assemble
+tinker_cookbook.utils.misc_utils:23 [INFO] assemble took 0.02 seconds
+__main__:652 [INFO] <|im_start|>user
+Classify the language of the provided text into one of these labels:
+ar, de, el, en, es, fr, hi, ru, tr, ur, vi, zh, ot.
+
+Respond with EXACTLY one line: "Final Answer: xx"
+
+Text to classify:
+لہذا، مجھے کوئی خاص کہانی نہیں ہے.<|im_end|>
+<|im_start|>assistant
+<think>
+
+</think>
+
+Final Answer: ur<|im_end|>
+tinker_cookbook.utils.misc_utils:20 [INFO] Starting kl_penalty
+tinker_cookbook.utils.misc_utils:23 [INFO] kl_penalty took 3.06 seconds
+tinker_cookbook.utils.misc_utils:20 [INFO] Starting train
+tinker_cookbook.utils.misc_utils:23 [INFO] train took 2.76 seconds
+tinker_cookbook.utils.misc_utils:20 [INFO] Starting compute_kl_sample_train
+tinker_cookbook.utils.misc_utils:23 [INFO] compute_kl_sample_train took 0.01 seconds
+tinker_cookbook.utils.misc_utils:20 [INFO] Starting save_checkpoint
+tinker_cookbook.utils.misc_utils:23 [INFO] save_checkpoint took 3.23 seconds
+tinker_cookbook.utils.ml_log:147 [INFO] Wrote metrics to data/context_distillation/logs/exp2_on_policy/metrics.jsonl
+tinker_cookbook.utils.ml_log:199 [INFO] 
+                   Step 21                    
+┏━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┳━━━━━━━━━━━┓
+┃ Metric                         ┃ Value     ┃
+┡━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━╇━━━━━━━━━━━┩
+│ optim/entropy                  │ 0.000169  │
+│ optim/kl_sample_train_v1       │ 0.000056  │
+│ optim/kl_sample_train_v2       │ 0.000000  │
+│ optim/lr                       │ 0.000100  │
+│ progress/batch                 │ 21        │
+│ progress/done_frac             │ 0.733333  │
+│ teacher_kl                     │ 0.025198  │
+│ time/assemble                  │ 0.024804  │
+│ time/compute_kl_sample_train   │ 0.006562  │
+│ time/kl_penalty                │ 3.064342  │
+│ time/sample                    │ 6.866991  │
+│ time/save_checkpoint           │ 3.232581  │
+│ time/total                     │ 15.957790 │
+│ time/train                     │ 2.760896  │
+└────────────────────────────────┴───────────┘
+tinker_cookbook.utils.misc_utils:20 [INFO] Starting sample
+tinker_cookbook.utils.misc_utils:23 [INFO] sample took 7.41 seconds
+tinker_cookbook.utils.misc_utils:20 [INFO] Starting assemble
+tinker_cookbook.utils.misc_utils:23 [INFO] assemble took 0.02 seconds
+__main__:652 [INFO] <|im_start|>user
+Classify the language of the provided text into one of these labels:
+ar, de, el, en, es, fr, hi, ru, tr, ur, vi, zh, ot.
+
+Respond with EXACTLY one line: "Final Answer: xx"
+
+Text to classify:
+是的，呃，我们，呃，U2乐队的构想里包括Rudolph Anderson。<|im_end|>
+<|im_start|>assistant
+<think>
+
+</think>
+
+Final Answer: zh<|im_end|>
+tinker_cookbook.utils.misc_utils:20 [INFO] Starting kl_penalty
+tinker_cookbook.utils.misc_utils:23 [INFO] kl_penalty took 5.33 seconds
+tinker_cookbook.utils.misc_utils:20 [INFO] Starting train
+tinker_cookbook.utils.misc_utils:23 [INFO] train took 2.69 seconds
+tinker_cookbook.utils.misc_utils:20 [INFO] Starting compute_kl_sample_train
+tinker_cookbook.utils.misc_utils:23 [INFO] compute_kl_sample_train took 0.01 seconds
+tinker_cookbook.utils.misc_utils:20 [INFO] Starting save_checkpoint
+tinker_cookbook.utils.misc_utils:23 [INFO] save_checkpoint took 3.59 seconds
+tinker_cookbook.utils.ml_log:147 [INFO] Wrote metrics to data/context_distillation/logs/exp2_on_policy/metrics.jsonl
+tinker_cookbook.utils.ml_log:199 [INFO] 
+                   Step 22                    
+┏━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┳━━━━━━━━━━━┓
+┃ Metric                         ┃ Value     ┃
+┡━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━╇━━━━━━━━━━━┩
+│ optim/entropy                  │ 0.000064  │
+│ optim/kl_sample_train_v1       │ 0.000043  │
+│ optim/kl_sample_train_v2       │ 0.000000  │
+│ optim/lr                       │ 0.000100  │
+│ progress/batch                 │ 22        │
+│ progress/done_frac             │ 0.766667  │
+│ teacher_kl                     │ 0.018266  │
+│ time/assemble                  │ 0.022222  │
+│ time/compute_kl_sample_train   │ 0.005881  │
+│ time/kl_penalty                │ 5.326041  │
+│ time/sample                    │ 7.411601  │
+│ time/save_checkpoint           │ 3.593289  │
+│ time/total                     │ 19.054028 │
+│ time/train                     │ 2.693473  │
+└────────────────────────────────┴───────────┘
+tinker_cookbook.utils.misc_utils:20 [INFO] Starting sample
+tinker_cookbook.utils.misc_utils:23 [INFO] sample took 6.92 seconds
+tinker_cookbook.utils.misc_utils:20 [INFO] Starting assemble
+tinker_cookbook.utils.misc_utils:23 [INFO] assemble took 0.02 seconds
+__main__:652 [INFO] <|im_start|>user
+Classify the language of the provided text into one of these labels:
+ar, de, el, en, es, fr, hi, ru, tr, ur, vi, zh, ot.
+
+Respond with EXACTLY one line: "Final Answer: xx"
+
+Text to classify:
+И аз казах, боже мой, и Рамона стоеше там.<|im_end|>
+<|im_start|>assistant
+<think>
+
+</think>
+
+Final Answer: ru<|im_end|>
+tinker_cookbook.utils.misc_utils:20 [INFO] Starting kl_penalty
+tinker_cookbook.utils.misc_utils:23 [INFO] kl_penalty took 3.03 seconds
+tinker_cookbook.utils.misc_utils:20 [INFO] Starting train
+tinker_cookbook.utils.misc_utils:23 [INFO] train took 3.68 seconds
+tinker_cookbook.utils.misc_utils:20 [INFO] Starting compute_kl_sample_train
+tinker_cookbook.utils.misc_utils:23 [INFO] compute_kl_sample_train took 0.01 seconds
+tinker_cookbook.utils.misc_utils:20 [INFO] Starting save_checkpoint
+tinker_cookbook.utils.misc_utils:23 [INFO] save_checkpoint took 3.05 seconds
+tinker_cookbook.utils.ml_log:147 [INFO] Wrote metrics to data/context_distillation/logs/exp2_on_policy/metrics.jsonl
+tinker_cookbook.utils.ml_log:199 [INFO] 
+                   Step 23                    
+┏━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┳━━━━━━━━━━━┓
+┃ Metric                         ┃ Value     ┃
+┡━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━╇━━━━━━━━━━━┩
+│ optim/entropy                  │ 0.000022  │
+│ optim/kl_sample_train_v1       │ 0.000005  │
+│ optim/kl_sample_train_v2       │ 0.000000  │
+│ optim/lr                       │ 0.000100  │
+│ progress/batch                 │ 23        │
+│ progress/done_frac             │ 0.800000  │
+│ teacher_kl                     │ 0.023170  │
+│ time/assemble                  │ 0.022183  │
+│ time/compute_kl_sample_train   │ 0.005836  │
+│ time/kl_penalty                │ 3.030954  │
+│ time/sample                    │ 6.918746  │
+│ time/save_checkpoint           │ 3.054915  │
+│ time/total                     │ 16.717868 │
+│ time/train                     │ 3.683758  │
+└────────────────────────────────┴───────────┘
+tinker_cookbook.utils.misc_utils:20 [INFO] Starting sample
+tinker_cookbook.utils.misc_utils:23 [INFO] sample took 6.78 seconds
+tinker_cookbook.utils.misc_utils:20 [INFO] Starting assemble
+tinker_cookbook.utils.misc_utils:23 [INFO] assemble took 0.02 seconds
+__main__:652 [INFO] <|im_start|>user
+Classify the language of the provided text into one of these labels:
+ar, de, el, en, es, fr, hi, ru, tr, ur, vi, zh, ot.
+
+Respond with EXACTLY one line: "Final Answer: xx"
+
+Text to classify:
+Και το γεγονός είναι ότι ήταν ελαφριά!<|im_end|>
+<|im_start|>assistant
+<think>
+
+</think>
+
+Final Answer: el<|im_end|>
+tinker_cookbook.utils.misc_utils:20 [INFO] Starting kl_penalty
+tinker_cookbook.utils.misc_utils:23 [INFO] kl_penalty took 3.96 seconds
+tinker_cookbook.utils.misc_utils:20 [INFO] Starting train
+tinker_cookbook.utils.misc_utils:23 [INFO] train took 2.68 seconds
+tinker_cookbook.utils.misc_utils:20 [INFO] Starting compute_kl_sample_train
+tinker_cookbook.utils.misc_utils:23 [INFO] compute_kl_sample_train took 0.01 seconds
+tinker_cookbook.utils.misc_utils:20 [INFO] Starting save_checkpoint
+tinker_cookbook.utils.misc_utils:23 [INFO] save_checkpoint took 3.22 seconds
+tinker_cookbook.utils.ml_log:147 [INFO] Wrote metrics to data/context_distillation/logs/exp2_on_policy/metrics.jsonl
+tinker_cookbook.utils.ml_log:199 [INFO] 
+                   Step 24                    
+┏━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┳━━━━━━━━━━━┓
+┃ Metric                         ┃ Value     ┃
+┡━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━╇━━━━━━━━━━━┩
+│ optim/entropy                  │ 0.000063  │
+│ optim/kl_sample_train_v1       │ 0.000013  │
+│ optim/kl_sample_train_v2       │ 0.000000  │
+│ optim/lr                       │ 0.000100  │
+│ progress/batch                 │ 24        │
+│ progress/done_frac             │ 0.833333  │
+│ teacher_kl                     │ 0.003260  │
+│ time/assemble                  │ 0.022582  │
+│ time/compute_kl_sample_train   │ 0.005875  │
+│ time/kl_penalty                │ 3.956648  │
+│ time/sample                    │ 6.777892  │
+│ time/save_checkpoint           │ 3.221732  │
+│ time/total                     │ 16.668886 │
+│ time/train                     │ 2.682689  │
+└────────────────────────────────┴───────────┘
+tinker_cookbook.utils.misc_utils:20 [INFO] Starting run_evals
+tinker_cookbook.utils.misc_utils:23 [INFO] run_evals took 9.10 seconds
+tinker_cookbook.utils.misc_utils:20 [INFO] Starting sample
+tinker_cookbook.utils.misc_utils:23 [INFO] sample took 1.33 seconds
+tinker_cookbook.utils.misc_utils:20 [INFO] Starting assemble
+tinker_cookbook.utils.misc_utils:23 [INFO] assemble took 0.03 seconds
+__main__:652 [INFO] <|im_start|>user
+Classify the language of the provided text into one of these labels:
+ar, de, el, en, es, fr, hi, ru, tr, ur, vi, zh, ot.
+
+Respond with EXACTLY one line: "Final Answer: xx"
+
+Text to classify:
+Él rasgaba el papel y lo colocaba en la arena,  encendía fuego y lo quemaba en el cenicero de arena, y luego removía las cenizas así.<|im_end|>
+<|im_start|>assistant
+<think>
+
+</think>
+
+Final Answer: es<|im_end|>
+tinker_cookbook.utils.misc_utils:20 [INFO] Starting kl_penalty
+tinker_cookbook.utils.misc_utils:23 [INFO] kl_penalty took 2.95 seconds
+tinker_cookbook.utils.misc_utils:20 [INFO] Starting train
+tinker_cookbook.utils.misc_utils:23 [INFO] train took 2.97 seconds
+tinker_cookbook.utils.misc_utils:20 [INFO] Starting compute_kl_sample_train
+tinker_cookbook.utils.misc_utils:23 [INFO] compute_kl_sample_train took 0.01 seconds
+tinker_cookbook.utils.misc_utils:20 [INFO] Starting save_checkpoint
+tinker_cookbook.utils.misc_utils:23 [INFO] save_checkpoint took 3.24 seconds
+tinker_cookbook.utils.ml_log:147 [INFO] Wrote metrics to data/context_distillation/logs/exp2_on_policy/metrics.jsonl
+tinker_cookbook.utils.ml_log:199 [INFO] 
+                    Step 25                    
+┏━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┳━━━━━━━━━━━━┓
+┃ Metric                         ┃ Value      ┃
+┡━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━╇━━━━━━━━━━━━┩
+│ optim/entropy                  │ 0.000046   │
+│ optim/kl_sample_train_v1       │ 0.000041   │
+│ optim/kl_sample_train_v2       │ 0.000000   │
+│ optim/lr                       │ 0.000100   │
+│ progress/batch                 │ 25         │
+│ progress/done_frac             │ 0.866667   │
+│ teacher_kl                     │ 0.009889   │
+│ test/accuracy                  │ 0.845000   │
+│ test/num_evaluated             │ 200.000000 │
+│ test/parse_rate                │ 0.870000   │
+│ time/assemble                  │ 0.029719   │
+│ time/compute_kl_sample_train   │ 0.006547   │
+│ time/kl_penalty                │ 2.948722   │
+│ time/run_evals                 │ 9.104214   │
+│ time/sample                    │ 1.333175   │
+│ time/save_checkpoint           │ 3.244253   │
+│ time/total                     │ 19.643024  │
+│ time/train                     │ 2.974730   │
+└────────────────────────────────┴────────────┘
+tinker_cookbook.utils.misc_utils:20 [INFO] Starting sample
+tinker_cookbook.utils.misc_utils:23 [INFO] sample took 6.75 seconds
+tinker_cookbook.utils.misc_utils:20 [INFO] Starting assemble
+tinker_cookbook.utils.misc_utils:23 [INFO] assemble took 0.03 seconds
+__main__:652 [INFO] <|im_start|>user
+Classify the language of the provided text into one of these labels:
+ar, de, el, en, es, fr, hi, ru, tr, ur, vi, zh, ot.
+
+Respond with EXACTLY one line: "Final Answer: xx"
+
+Text to classify:
+सब हो जाने पर उन्होंने हमे कभी नहीं बताया के वो कहा जा रहे है , बेस छोड़कर कुछ देर के लिए कही और ठैरने जाते वक़्त भी नहीं |<|im_end|>
+<|im_start|>assistant
+<think>
+
+</think>
+
+Final Answer: hi<|im_end|>
+tinker_cookbook.utils.misc_utils:20 [INFO] Starting kl_penalty
+tinker_cookbook.utils.misc_utils:23 [INFO] kl_penalty took 3.54 seconds
+tinker_cookbook.utils.misc_utils:20 [INFO] Starting train
+tinker_cookbook.utils.misc_utils:23 [INFO] train took 4.69 seconds
+tinker_cookbook.utils.misc_utils:20 [INFO] Starting compute_kl_sample_train
+tinker_cookbook.utils.misc_utils:23 [INFO] compute_kl_sample_train took 0.01 seconds
+tinker_cookbook.utils.misc_utils:20 [INFO] Starting save_checkpoint
+tinker_cookbook.utils.misc_utils:23 [INFO] save_checkpoint took 3.25 seconds
+tinker_cookbook.utils.ml_log:147 [INFO] Wrote metrics to data/context_distillation/logs/exp2_on_policy/metrics.jsonl
+tinker_cookbook.utils.ml_log:199 [INFO] 
+                   Step 26                    
+┏━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┳━━━━━━━━━━━┓
+┃ Metric                         ┃ Value     ┃
+┡━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━╇━━━━━━━━━━━┩
+│ optim/entropy                  │ 0.000088  │
+│ optim/kl_sample_train_v1       │ -0.000020 │
+│ optim/kl_sample_train_v2       │ 0.000000  │
+│ optim/lr                       │ 0.000100  │
+│ progress/batch                 │ 26        │
+│ progress/done_frac             │ 0.900000  │
+│ teacher_kl                     │ 0.032642  │
+│ time/assemble                  │ 0.028222  │
+│ time/compute_kl_sample_train   │ 0.007372  │
+│ time/kl_penalty                │ 3.542241  │
+│ time/sample                    │ 6.753294  │
+│ time/save_checkpoint           │ 3.250663  │
+│ time/total                     │ 18.270884 │
+│ time/train                     │ 4.687589  │
+└────────────────────────────────┴───────────┘
+tinker_cookbook.utils.misc_utils:20 [INFO] Starting sample
+tinker_cookbook.utils.misc_utils:23 [INFO] sample took 7.27 seconds
+tinker_cookbook.utils.misc_utils:20 [INFO] Starting assemble
+tinker_cookbook.utils.misc_utils:23 [INFO] assemble took 0.03 seconds
+__main__:652 [INFO] <|im_start|>user
+Classify the language of the provided text into one of these labels:
+ar, de, el, en, es, fr, hi, ru, tr, ur, vi, zh, ot.
+
+Respond with EXACTLY one line: "Final Answer: xx"
+
+Text to classify:
+Hilo ni jambo la kipekee kuwa nilikuwa kwa miaka 16 ya kazi yangu katika shughuli maalum<|im_end|>
+<|im_start|>assistant
+<think>
+
+</think>
+
+Final Answer: sw<|im_end|>
+tinker_cookbook.utils.misc_utils:20 [INFO] Starting kl_penalty
+tinker_cookbook.utils.misc_utils:23 [INFO] kl_penalty took 2.87 seconds
+tinker_cookbook.utils.misc_utils:20 [INFO] Starting train
+tinker_cookbook.utils.misc_utils:23 [INFO] train took 3.04 seconds
+tinker_cookbook.utils.misc_utils:20 [INFO] Starting compute_kl_sample_train
+tinker_cookbook.utils.misc_utils:23 [INFO] compute_kl_sample_train took 0.01 seconds
+tinker_cookbook.utils.misc_utils:20 [INFO] Starting save_checkpoint
+tinker_cookbook.utils.misc_utils:23 [INFO] save_checkpoint took 3.30 seconds
+tinker_cookbook.utils.ml_log:147 [INFO] Wrote metrics to data/context_distillation/logs/exp2_on_policy/metrics.jsonl
+tinker_cookbook.utils.ml_log:199 [INFO] 
+                   Step 27                    
+┏━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┳━━━━━━━━━━━┓
+┃ Metric                         ┃ Value     ┃
+┡━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━╇━━━━━━━━━━━┩
+│ optim/entropy                  │ 0.000025  │
+│ optim/kl_sample_train_v1       │ -0.000015 │
+│ optim/kl_sample_train_v2       │ 0.000000  │
+│ optim/lr                       │ 0.000100  │
+│ progress/batch                 │ 27        │
+│ progress/done_frac             │ 0.933333  │
+│ teacher_kl                     │ 0.025630  │
+│ time/assemble                  │ 0.029673  │
+│ time/compute_kl_sample_train   │ 0.006664  │
+│ time/kl_penalty                │ 2.869663  │
+│ time/sample                    │ 7.269960  │
+│ time/save_checkpoint           │ 3.299403  │
+│ time/total                     │ 16.518729 │
+│ time/train                     │ 3.041763  │
+└────────────────────────────────┴───────────┘
+tinker_cookbook.utils.misc_utils:20 [INFO] Starting sample
+tinker_cookbook.utils.misc_utils:23 [INFO] sample took 6.55 seconds
+tinker_cookbook.utils.misc_utils:20 [INFO] Starting assemble
+tinker_cookbook.utils.misc_utils:23 [INFO] assemble took 0.17 seconds
+__main__:652 [INFO] <|im_start|>user
+Classify the language of the provided text into one of these labels:
+ar, de, el, en, es, fr, hi, ru, tr, ur, vi, zh, ot.
+
+Respond with EXACTLY one line: "Final Answer: xx"
+
+Text to classify:
+Tabii ertesi gün, Başkan Kennedy Küba'yı abluka altına aldı ve gemilerimiz, Küba'nın hemen dışındaki bir Rus gemisini durdurdu ve üzerinde füzeler buldular.<|im_end|>
+<|im_start|>assistant
+<think>
+
+</think>
+
+Final Answer: tr<|im_end|>
+tinker_cookbook.utils.misc_utils:20 [INFO] Starting kl_penalty
+tinker_cookbook.utils.misc_utils:23 [INFO] kl_penalty took 2.94 seconds
+tinker_cookbook.utils.misc_utils:20 [INFO] Starting train
+tinker_cookbook.utils.misc_utils:23 [INFO] train took 2.77 seconds
+tinker_cookbook.utils.misc_utils:20 [INFO] Starting compute_kl_sample_train
+tinker_cookbook.utils.misc_utils:23 [INFO] compute_kl_sample_train took 0.01 seconds
+tinker_cookbook.utils.misc_utils:20 [INFO] Starting save_checkpoint
+tinker_cookbook.utils.misc_utils:23 [INFO] save_checkpoint took 2.94 seconds
+tinker_cookbook.utils.ml_log:147 [INFO] Wrote metrics to data/context_distillation/logs/exp2_on_policy/metrics.jsonl
+tinker_cookbook.utils.ml_log:199 [INFO] 
+                   Step 28                    
+┏━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┳━━━━━━━━━━━┓
+┃ Metric                         ┃ Value     ┃
+┡━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━╇━━━━━━━━━━━┩
+│ optim/entropy                  │ 0.000010  │
+│ optim/kl_sample_train_v1       │ 0.000002  │
+│ optim/kl_sample_train_v2       │ 0.000000  │
+│ optim/lr                       │ 0.000100  │
+│ progress/batch                 │ 28        │
+│ progress/done_frac             │ 0.966667  │
+│ teacher_kl                     │ 0.015127  │
+│ time/assemble                  │ 0.170362  │
+│ time/compute_kl_sample_train   │ 0.005934  │
+│ time/kl_penalty                │ 2.935492  │
+│ time/sample                    │ 6.553792  │
+│ time/save_checkpoint           │ 2.941642  │
+│ time/total                     │ 15.380025 │
+│ time/train                     │ 2.771194  │
+└────────────────────────────────┴───────────┘
+tinker_cookbook.utils.misc_utils:20 [INFO] Starting sample
+tinker_cookbook.utils.misc_utils:23 [INFO] sample took 6.95 seconds
+tinker_cookbook.utils.misc_utils:20 [INFO] Starting assemble
+tinker_cookbook.utils.misc_utils:23 [INFO] assemble took 0.02 seconds
+__main__:652 [INFO] <|im_start|>user
+Classify the language of the provided text into one of these labels:
+ar, de, el, en, es, fr, hi, ru, tr, ur, vi, zh, ot.
+
+Respond with EXACTLY one line: "Final Answer: xx"
+
+Text to classify:
+Ừm, ông bà của tôi luôn là những người rất đáng yêu và đại loại vậy, bố mẹ và chúng tôi thực sự đã có một khoảng thời gian tuyệt vời ở đó.<|im_end|>
+<|im_start|>assistant
+<think>
+
+</think>
+
+Final Answer: vi<|im_end|>
+tinker_cookbook.utils.misc_utils:20 [INFO] Starting kl_penalty
+tinker_cookbook.utils.misc_utils:23 [INFO] kl_penalty took 2.52 seconds
+tinker_cookbook.utils.misc_utils:20 [INFO] Starting train
+tinker_cookbook.utils.misc_utils:23 [INFO] train took 2.84 seconds
+tinker_cookbook.utils.misc_utils:20 [INFO] Starting compute_kl_sample_train
+tinker_cookbook.utils.misc_utils:23 [INFO] compute_kl_sample_train took 0.01 seconds
+tinker_cookbook.utils.misc_utils:20 [INFO] Starting save_checkpoint
+tinker_cookbook.checkpoint_utils:326 [INFO] Saved checkpoints: {'state_path': 'tinker://30c18da0-ee12-50a7-9330-15c505a2c44f:train:0/weights/000030', 'sampler_path': 'tinker://30c18da0-ee12-50a7-9330-15c505a2c44f:train:0/sampler_weights/000030'}
+tinker_cookbook.utils.misc_utils:23 [INFO] save_checkpoint took 16.07 seconds
+tinker_cookbook.utils.ml_log:147 [INFO] Wrote metrics to data/context_distillation/logs/exp2_on_policy/metrics.jsonl
+tinker_cookbook.utils.ml_log:199 [INFO] 
+                   Step 29                    
+┏━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┳━━━━━━━━━━━┓
+┃ Metric                         ┃ Value     ┃
+┡━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━╇━━━━━━━━━━━┩
+│ optim/entropy                  │ 0.000009  │
+│ optim/kl_sample_train_v1       │ -0.000002 │
+│ optim/kl_sample_train_v2       │ 0.000000  │
+│ optim/lr                       │ 0.000100  │
+│ progress/batch                 │ 29        │
+│ progress/done_frac             │ 1.000000  │
+│ teacher_kl                     │ 0.014411  │
+│ time/assemble                  │ 0.024223  │
+│ time/compute_kl_sample_train   │ 0.006144  │
+│ time/kl_penalty                │ 2.524894  │
+│ time/sample                    │ 6.949110  │
+│ time/save_checkpoint           │ 16.067132 │
+│ time/total                     │ 28.416773 │
+│ time/train                     │ 2.843528  │
+└────────────────────────────────┴───────────┘
+__main__:699 [INFO] Running final evaluation...
+__main__:701 [INFO] Final results: {'accuracy': 0.845, 'parse_rate': 0.87, 'num_evaluated': 200.0}
+tinker_cookbook.utils.ml_log:147 [INFO] Wrote metrics to data/context_distillation/logs/exp2_on_policy/metrics.jsonl
+tinker_cookbook.utils.ml_log:199 [INFO] 
+                    Step 30                    
+┏━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┳━━━━━━━━━━━━┓
+┃ Metric                         ┃ Value      ┃
+┡━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━╇━━━━━━━━━━━━┩
+│ final/accuracy                 │ 0.845000   │
+│ final/num_evaluated            │ 200.000000 │
+│ final/parse_rate               │ 0.870000   │
+└────────────────────────────────┴────────────┘
+tinker_cookbook.checkpoint_utils:326 [INFO] Saved checkpoints: {'state_path': 'tinker://30c18da0-ee12-50a7-9330-15c505a2c44f:train:0/weights/final', 'sampler_path': 'tinker://30c18da0-ee12-50a7-9330-15c505a2c44f:train:0/sampler_weights/final'}
+__main__:716 [INFO] Training completed successfully
