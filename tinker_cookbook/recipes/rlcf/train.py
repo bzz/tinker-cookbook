@@ -1,0 +1,191 @@
+"""
+RLCF: Reinforcement Learning from Checklist Feedback.
+
+Trains a language model using GRPO with instruction-specific checklists as the
+reward signal, following the approach of Viswanathan et al. (2025):
+  "Checklists Are Better Than Reward Models For Aligning Language Models"
+  https://arxiv.org/abs/2507.18624
+
+Usage::
+
+    python -m tinker_cookbook.recipes.rlcf.train
+
+Override defaults with CLI args::
+
+    python -m tinker_cookbook.recipes.rlcf.train \\
+        model_name=Qwen/Qwen2.5-7B-Instruct \\
+        groups_per_batch=32 \\
+        group_size=4 \\
+        learning_rate=3e-6
+"""
+
+import asyncio
+from datetime import datetime
+
+import chz
+from tinker.types import LossFnType
+
+from tinker_cookbook import checkpoint_utils, cli_utils
+from tinker_cookbook.recipes.rlcf.data import (
+    ChecklistDatapointListBuilderFromJsonl,
+)
+from tinker_cookbook.recipes.rlcf.env import ChecklistGradedDatasetBuilder
+from tinker_cookbook.rl.train import AsyncConfig, Config, main
+from tinker_cookbook.rl.types import RLDatasetBuilder
+
+
+@chz.chz
+class CLIConfig:
+    """Command-line configuration for RLCF training.
+
+    Defaults follow the paper (Viswanathan et al., 2025) where applicable:
+    - Qwen/Qwen2.5-7B-Instruct as the policy model
+    - DPO-scale learning rate (3e-6) adapted for online GRPO
+    - importance_sampling loss
+    """
+
+    # Model
+    model_name: str = "Qwen/Qwen2.5-7B-Instruct"
+    lora_rank: int = 32
+    renderer_name: str | None = None
+    load_checkpoint_path: str | None = None
+
+    seed: int = 0
+
+    # Training hyperparameters (paper-aligned defaults)
+    train_group_size: int = 4
+    test_group_size: int = 1
+    groups_per_batch: int = 32
+    learning_rate: float = 3e-6
+    max_tokens: int = 2048
+    temperature: float = 1.0
+    kl_penalty_coef: float = 0.0
+    num_substeps: int = 1
+
+    # Judge LLM for checklist evaluation
+    judge_llm_name: str = "Qwen/Qwen3-30B-A3B-Instruct-2507"
+    add_universal_requirement: bool = True
+
+    # Data paths
+    train_jsonl_path: str = "tinker_cookbook/example_data/example_rlcf_train.jsonl"
+    test_jsonl_path: str | None = "tinker_cookbook/example_data/example_rlcf_test.jsonl"
+
+    # Logging
+    log_path: str | None = None
+    wandb_project: str | None = None
+    wandb_name: str | None = None
+    compute_post_kl: bool = False
+
+    # Evals & checkpointing
+    eval_every: int = 20
+    save_every: int = 20
+
+    # Service
+    base_url: str | None = None
+    behavior_if_log_dir_exists: cli_utils.LogdirBehavior = "ask"
+
+    # Async / off-policy
+    max_steps_off_policy: int | None = None
+    loss_fn: LossFnType = "importance_sampling"
+    max_steps: int | None = None
+
+
+def get_dataset_builder(
+    batch_size: int,
+    policy_model_name: str,
+    renderer_name: str,
+    judge_llm_name: str,
+    train_group_size: int,
+    train_jsonl_path: str,
+    test_jsonl_path: str | None = None,
+    test_group_size: int = 1,
+    add_universal_requirement: bool = True,
+    base_url: str | None = None,
+) -> RLDatasetBuilder:
+    return ChecklistGradedDatasetBuilder(
+        batch_size=batch_size,
+        model_name_for_tokenizer=policy_model_name,
+        renderer_name=renderer_name,
+        judge_llm_name=judge_llm_name,
+        train_datapoint_list_builder=ChecklistDatapointListBuilderFromJsonl(
+            jsonl_path=train_jsonl_path
+        ),
+        test_datapoint_list_builder=ChecklistDatapointListBuilderFromJsonl(
+            jsonl_path=test_jsonl_path
+        )
+        if test_jsonl_path is not None
+        else None,
+        train_group_size=train_group_size,
+        test_group_size=test_group_size,
+        add_universal_requirement=add_universal_requirement,
+        base_url=base_url,
+    )
+
+
+async def cli_main(cli_config: CLIConfig) -> None:
+    """Convert CLI config to full RL config and launch training."""
+
+    renderer_name = await checkpoint_utils.resolve_renderer_name_from_checkpoint_or_default_async(
+        model_name=cli_config.model_name,
+        explicit_renderer_name=cli_config.renderer_name,
+        load_checkpoint_path=cli_config.load_checkpoint_path,
+        base_url=cli_config.base_url,
+    )
+
+    model_slug = cli_config.model_name.replace("/", "-")
+    run_name = (
+        f"rlcf-{model_slug}-lr{cli_config.learning_rate}"
+        f"-g{cli_config.train_group_size}-b{cli_config.groups_per_batch}"
+        f"-{cli_config.loss_fn}-seed{cli_config.seed}"
+        f"-{datetime.now().strftime('%Y-%m-%d-%H-%M')}"
+    )
+
+    log_path = cli_config.log_path or f"/tmp/tinker-examples/rlcf/{run_name}"
+    wandb_name = cli_config.wandb_name or run_name
+
+    config = Config(
+        learning_rate=cli_config.learning_rate,
+        dataset_builder=get_dataset_builder(
+            batch_size=cli_config.groups_per_batch,
+            policy_model_name=cli_config.model_name,
+            renderer_name=renderer_name,
+            judge_llm_name=cli_config.judge_llm_name,
+            train_group_size=cli_config.train_group_size,
+            train_jsonl_path=cli_config.train_jsonl_path,
+            test_jsonl_path=cli_config.test_jsonl_path,
+            test_group_size=cli_config.test_group_size,
+            add_universal_requirement=cli_config.add_universal_requirement,
+            base_url=cli_config.base_url,
+        ),
+        model_name=cli_config.model_name,
+        renderer_name=renderer_name,
+        lora_rank=cli_config.lora_rank,
+        max_tokens=cli_config.max_tokens,
+        temperature=cli_config.temperature,
+        wandb_project=cli_config.wandb_project,
+        wandb_name=wandb_name,
+        log_path=log_path,
+        base_url=cli_config.base_url,
+        load_checkpoint_path=cli_config.load_checkpoint_path,
+        compute_post_kl=cli_config.compute_post_kl,
+        kl_penalty_coef=cli_config.kl_penalty_coef,
+        num_substeps=cli_config.num_substeps,
+        eval_every=cli_config.eval_every,
+        save_every=cli_config.save_every,
+        async_config=AsyncConfig(
+            max_steps_off_policy=cli_config.max_steps_off_policy,
+            groups_per_batch=cli_config.groups_per_batch,
+        )
+        if cli_config.max_steps_off_policy is not None
+        else None,
+        loss_fn=cli_config.loss_fn,
+        max_steps=cli_config.max_steps,
+    )
+
+    cli_utils.check_log_dir(log_path, behavior_if_exists=cli_config.behavior_if_log_dir_exists)
+    await main(config)
+
+
+if __name__ == "__main__":
+    cli_config = chz.entrypoint(CLIConfig)
+    asyncio.run(cli_main(cli_config))
